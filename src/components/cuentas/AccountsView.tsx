@@ -216,7 +216,25 @@ export const AccountsView: React.FC = () => {
       </div>
 
       {/* Accounts Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {accounts.length === 0 ? (
+        <div className="p-10 text-center bg-slate-900 border border-slate-800 rounded-2xl">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-3">
+            <Wallet className="w-6 h-6 text-emerald-400" />
+          </div>
+          <h3 className="text-base font-bold text-slate-100">Sin cuentas registradas</h3>
+          <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+            Los datos de ejemplo se han borrado. Puedes crear tus cuentas bancarias, tarjetas o efectivo para gestionar tus saldos reales.
+          </p>
+          <button
+            onClick={handleOpenCreate}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md transition-all hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Crear mi primera cuenta</span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {accounts.map((acc) => {
           const balance = getAccountBalance(acc.id);
           const Icon = getAccountTypeIcon(acc.tipo);
@@ -299,6 +317,7 @@ export const AccountsView: React.FC = () => {
           );
         })}
       </div>
+      )}
 
       {/* Modal Crear / Editar Cuenta */}
       {isNewModalOpen && (

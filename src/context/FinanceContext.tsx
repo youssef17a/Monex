@@ -110,6 +110,11 @@ interface FinanceContextType {
   deleteOneOffExpense: (id: string) => void;
   toggleOneOffExpensePagado: (id: string) => void;
 
+  // Theme
+  theme: 'dark' | 'light';
+  toggleTheme: () => void;
+  setTheme: (theme: 'dark' | 'light') => void;
+
   // System Reset
   resetToDefaultData: () => void;
 }
@@ -119,6 +124,31 @@ const STORAGE_KEY = 'gestor_finanzas_intranet_v1';
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Theme state persisted in localStorage
+  const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_theme`);
+    return saved === 'light' || saved === 'dark' ? saved : 'dark';
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_theme`, theme);
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  const setTheme = (newTheme: 'dark' | 'light') => {
+    setThemeState(newTheme);
+  };
+
   // Load initial or persisted state
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_users`);
@@ -164,14 +194,17 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return null;
   });
 
+  // Admin numbers are strictly cleared so the admin enters real figures by hand
   const [accounts, setAccounts] = useState<Account[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_accounts`);
-    return saved ? JSON.parse(saved) : INITIAL_ACCOUNTS;
+    const loaded = saved ? JSON.parse(saved) : INITIAL_ACCOUNTS;
+    return loaded.filter((a: Account) => a.userId !== 'user_admin_01');
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_transactions`);
-    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
+    const loaded = saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
+    return loaded.filter((t: Transaction) => t.userId !== 'user_admin_01');
   });
 
   const [categories, setCategories] = useState<Category[]>(() => {
@@ -191,22 +224,26 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [financiaciones, setFinanciaciones] = useState<Financiacion[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_financiaciones`);
-    return saved ? JSON.parse(saved) : INITIAL_FINANCIACIONES;
+    const loaded = saved ? JSON.parse(saved) : INITIAL_FINANCIACIONES;
+    return loaded.filter((f: Financiacion) => f.userId !== 'user_admin_01');
   });
 
   const [budgets, setBudgets] = useState<Budget[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_budgets`);
-    return saved ? JSON.parse(saved) : INITIAL_BUDGETS;
+    const loaded = saved ? JSON.parse(saved) : INITIAL_BUDGETS;
+    return loaded.filter((b: Budget) => b.userId !== 'user_admin_01');
   });
 
   const [recurrents, setRecurrents] = useState<RecurrentMovement[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_recurrents`);
-    return saved ? JSON.parse(saved) : INITIAL_RECURRENTS;
+    const loaded = saved ? JSON.parse(saved) : INITIAL_RECURRENTS;
+    return loaded.filter((r: RecurrentMovement) => r.userId !== 'user_admin_01');
   });
 
   const [oneOffExpenses, setOneOffExpenses] = useState<OneOffPlannedExpense[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_one_off_expenses`);
-    return saved ? JSON.parse(saved) : INITIAL_ONE_OFF_EXPENSES;
+    const loaded = saved ? JSON.parse(saved) : INITIAL_ONE_OFF_EXPENSES;
+    return loaded.filter((o: OneOffPlannedExpense) => o.userId !== 'user_admin_01');
   });
 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
@@ -959,6 +996,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateOneOffExpense,
         deleteOneOffExpense,
         toggleOneOffExpensePagado,
+        theme,
+        toggleTheme,
+        setTheme,
         resetToDefaultData,
       }}
     >

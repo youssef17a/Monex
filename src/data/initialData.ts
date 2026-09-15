@@ -144,28 +144,6 @@ export const INITIAL_ACCOUNTS: Account[] = [
     saldoInicial: 160.0,
     createdAt: '2026-01-01',
   },
-  // Cuentas de admin para demo
-  {
-    id: 'acc_admin_corriente',
-    userId: 'user_admin_01',
-    nombre: 'Cuenta Principal',
-    entidad: 'CaixaBank',
-    tipo: 'banco',
-    color: '#06b6d4',
-    saldoInicial: 5300.0,
-    ibanOrNumber: 'ES76 2100 **** 9012',
-    createdAt: '2026-01-01',
-  },
-  {
-    id: 'acc_admin_inversion',
-    userId: 'user_admin_01',
-    nombre: 'Cartera Indexada',
-    entidad: 'MyInvestor',
-    tipo: 'inversion',
-    color: '#8b5cf6',
-    saldoInicial: 15400.0,
-    createdAt: '2026-01-01',
-  },
 ];
 
 // Helper to generate installments

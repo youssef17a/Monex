@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Plus, Bell, Shield, Wallet } from 'lucide-react';
+import { Menu, Plus, Bell, Shield, Wallet, Sun, Moon } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { formatCurrency } from '../../lib/formatters';
 
@@ -18,7 +18,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigateToCuotas,
   onNavigate,
 }) => {
-  const { currentUser, financiaciones, getTotalBalance } = useFinance();
+  const { currentUser, financiaciones, getTotalBalance, theme, toggleTheme } = useFinance();
 
   // Calculate upcoming or pending quotas for the current month
   const today = new Date();
@@ -73,6 +73,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold flex items-center justify-center animate-pulse">
               {pendingCuotasThisMonth.length}
             </span>
+          )}
+        </button>
+
+        {/* Theme Toggle Button */}
+        <button
+          id="btn-toggle-theme"
+          onClick={toggleTheme}
+          className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/60 border border-slate-800 transition-colors"
+          title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+          aria-label="Cambiar tema de la intranet"
+        >
+          {theme === 'dark' ? (
+            <Sun className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Moon className="w-4 h-4 text-indigo-500" />
           )}
         </button>
 

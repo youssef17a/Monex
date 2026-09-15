@@ -13,6 +13,8 @@ import {
   ChevronRight,
   Users,
   HardDrive,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 
@@ -39,7 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   setIsOpenMobile,
 }) => {
-  const { currentUser, logout, users, switchUserQuick } = useFinance();
+  const { currentUser, logout, theme, toggleTheme } = useFinance();
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
@@ -195,9 +197,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </nav>
 
-        {/* Footer info & Logout */}
-        <div className="p-3 border-t border-slate-800/80 bg-slate-950/40">
-          <div className="flex items-center justify-between text-xs text-slate-400 px-2 mb-2">
+        {/* Footer info & Theme & Logout */}
+        <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 space-y-2.5">
+          {/* Theme Switcher */}
+          <div className="flex items-center justify-between px-2 py-1 bg-slate-900/80 border border-slate-800/60 rounded-xl">
+            <span className="text-xs text-slate-400 font-medium">Tema</span>
+            <div className="flex items-center gap-1 bg-slate-950/80 p-0.5 rounded-lg border border-slate-800/50">
+              <button
+                type="button"
+                id="btn-sidebar-theme-dark"
+                onClick={() => theme !== 'dark' && toggleTheme()}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  theme === 'dark'
+                    ? 'bg-slate-800 text-amber-300 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Tema oscuro"
+              >
+                <Moon className="w-3 h-3 text-indigo-400" />
+                <span>Oscuro</span>
+              </button>
+              <button
+                type="button"
+                id="btn-sidebar-theme-light"
+                onClick={() => theme !== 'light' && toggleTheme()}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  theme === 'light'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Tema claro"
+              >
+                <Sun className="w-3 h-3 text-amber-500" />
+                <span>Claro</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-slate-400 px-2">
             <span className="font-mono">MariaDB 10.11</span>
             <span className="text-slate-400">PHP 8.2-FPM</span>
           </div>
@@ -207,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors border border-rose-500/20"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Cerrar sesión segura</span>
+            <span>Cerrar sesión</span>
           </button>
         </div>
       </aside>

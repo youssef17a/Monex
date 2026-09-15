@@ -12,17 +12,17 @@ import { AdminPanelView } from './components/admin/AdminPanelView';
 import { ServerDocsView } from './components/server/ServerDocsView';
 import { QuickTransactionModal } from './components/common/QuickTransactionModal';
 import { FloatingActionButton } from './components/common/FloatingActionButton';
-import { Lock, HardDrive, ShieldCheck, UserCheck, Key, ArrowRight } from 'lucide-react';
+import { Lock, HardDrive, ArrowRight, Sun, Moon } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
-  const { currentUser, login, users } = useFinance();
+  const { currentUser, login, theme, toggleTheme } = useFinance();
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isOpenMobile, setIsOpenMobile] = useState(false);
   const [isQuickTxOpen, setIsQuickTxOpen] = useState(false);
 
-  // Login form state (if logged out)
-  const [loginUsername, setLoginUsername] = useState('admin');
-  const [loginPassword, setLoginPassword] = useState('intranet2026');
+  // Login form state (empty by default, no prefilled data)
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
   const handleLogin = (e: React.FormEvent) => {
@@ -38,10 +38,33 @@ const MainLayout: React.FC = () => {
   // If not logged in, render the clean Intranet Login Screen
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden">
+      <div className={`min-h-screen ${theme === 'light' ? 'light bg-slate-100 text-slate-900' : 'bg-slate-950 text-slate-100'} flex flex-col justify-center items-center p-4 relative overflow-hidden transition-colors`}>
         {/* Subtle background ambient blur */}
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Theme toggle button on login screen */}
+        <div className="absolute top-4 right-4 z-20">
+          <button
+            type="button"
+            id="btn-login-theme-toggle"
+            onClick={toggleTheme}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-medium text-slate-300 hover:text-white transition-colors shadow-sm"
+            title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Tema Claro</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="hidden sm:inline">Tema Oscuro</span>
+              </>
+            )}
+          </button>
+        </div>
 
         <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl relative z-10">
           <div className="text-center mb-8">
@@ -50,7 +73,7 @@ const MainLayout: React.FC = () => {
             </div>
             <h1 className="text-xl font-bold text-slate-100 tracking-tight">Gestor Financiero Intranet</h1>
             <p className="text-xs text-slate-400 mt-1">
-              Ubuntu Server • Acceso Privado Autenticado
+              Acceso Autenticado Privado
             </p>
           </div>
 
@@ -69,7 +92,7 @@ const MainLayout: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="Administrador"
+                  placeholder="Usuario"
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500 transition-colors"
@@ -102,46 +125,13 @@ const MainLayout: React.FC = () => {
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
-
-          {/* Quick Access Credentials */}
-          <div className="mt-8 pt-6 border-t border-slate-800/80">
-            <span className="text-[11px] font-semibold text-slate-400 block mb-2 text-center uppercase tracking-wider">
-              Credenciales de Administrador
-            </span>
-            <div className="space-y-2 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setLoginUsername('Administrador');
-                  setLoginPassword('N1had2022.');
-                }}
-                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500 text-left transition-colors flex items-center justify-between"
-              >
-                <div>
-                  <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Administrador</span>
-                  </div>
-                  <span className="text-[11px] text-slate-400 block mt-0.5 font-mono">
-                    User: Administrador | Clave: N1had2022.
-                  </span>
-                </div>
-                <span className="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-300 font-medium">
-                  Rellenar
-                </span>
-              </button>
-            </div>
-            <p className="text-[10px] text-slate-400 text-center mt-3">
-              Con el Administrador puedes crear nuevos usuarios y restablecer contraseñas.
-            </p>
-          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
+    <div className={`min-h-screen ${theme === 'light' ? 'light bg-slate-100 text-slate-900' : 'bg-slate-950 text-slate-100'} flex transition-colors`}>
       {/* Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
