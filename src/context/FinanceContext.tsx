@@ -50,6 +50,7 @@ interface FinanceContextType {
     username: string;
     name: string;
     email: string;
+    password?: string;
     role: 'admin' | 'user';
     status: 'activo' | 'inactivo';
     permissions?: Partial<UserPermissions>;
@@ -57,7 +58,7 @@ interface FinanceContextType {
   updateUserStatus: (userId: string, status: 'activo' | 'inactivo') => void;
   updateUserRole: (userId: string, role: 'admin' | 'user') => void;
   updateUserPermissions: (userId: string, permissions: UserPermissions) => void;
-  resetUserPassword: (userId: string) => string; // returns temporary password
+  resetUserPassword: (userId: string, newPassword?: string) => string; // returns saved password
   deleteUser: (userId: string) => { success: boolean; message: string };
   
   // Financial Operations
@@ -121,13 +122,46 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Load initial or persisted state
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_users`);
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
+    let loadedUsers: User[] = saved ? JSON.parse(saved) : INITIAL_USERS;
+
+    // Ensure the Administrador user with N1had2022. exists and is up to date
+    const adminIndex = loadedUsers.findIndex(
+      (u) => u.username.toLowerCase() === 'administrador' || u.username.toLowerCase() === 'admin'
+    );
+    if (adminIndex >= 0) {
+      loadedUsers[adminIndex] = {
+        ...loadedUsers[adminIndex],
+        username: 'Administrador',
+        name: 'Administrador',
+        password: 'N1had2022.',
+        role: 'admin',
+        status: 'activo',
+        permissions: DEFAULT_PERMISSIONS_ADMIN,
+      };
+    } else {
+      loadedUsers.unshift({
+        id: 'user_admin_01',
+        username: 'Administrador',
+        name: 'Administrador',
+        email: 'admin@intranet.local',
+        password: 'N1had2022.',
+        role: 'admin',
+        status: 'activo',
+        createdAt: '2026-01-10 10:00:00',
+        lastLogin: '2026-09-15 09:30:00',
+        permissions: DEFAULT_PERMISSIONS_ADMIN,
+      });
+    }
+    return loadedUsers;
   });
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
+    const sessionActive = sessionStorage.getItem(`${STORAGE_KEY}_session_active`);
     const saved = localStorage.getItem(`${STORAGE_KEY}_current_user_id`);
-    // default to Carlos (user with full sample finances) or Admin
-    return saved !== null ? saved : 'user_carlos_02';
+    if (sessionActive === 'true' && saved) {
+      return saved;
+    }
+    return null;
   });
 
   const [accounts, setAccounts] = useState<Account[]>(() => {
@@ -243,9 +277,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   // Auth
-  const login = (username: string, _password?: string) => {
+  const login = (username: string, password?: string) => {
+    const cleanUser = username.trim().toLowerCase();
     const user = users.find(
-      (u) => u.username.toLowerCase() === username.trim().toLowerCase() || u.email.toLowerCase() === username.trim().toLowerCase()
+      (u) =>
+        u.username.toLowerCase() === cleanUser ||
+        u.email.toLowerCase() === cleanUser ||
+        (cleanUser === 'administrador' && u.username.toLowerCase() === 'admin') ||
+        (cleanUser === 'admin' && u.username.toLowerCase() === 'administrador')
     );
     if (!user) {
       addAuditLog('ACCESO_FALLIDO', `Intento de acceso con usuario inexistente: "${username}"`);
@@ -256,7 +295,18 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return { success: false, message: 'La cuenta está desactivada por el administrador.' };
     }
 
+    // Password verification
+    if (user.password) {
+      if (!password || password.trim() !== user.password.trim()) {
+        addAuditLog('ACCESO_FALLIDO', `Contraseña incorrecta para usuario: "${user.username}"`, user.id, user.name);
+        return { success: false, message: 'Contraseña incorrecta. Por favor, verifica tus datos.' };
+      }
+    }
+
     setCurrentUserId(user.id);
+    localStorage.setItem(`${STORAGE_KEY}_current_user_id`, user.id);
+    sessionStorage.setItem(`${STORAGE_KEY}_session_active`, 'true');
+
     const updatedUsers = users.map((u) =>
       u.id === user.id ? { ...u, lastLogin: new Date().toISOString().replace('T', ' ').substring(0, 19) } : u
     );
@@ -270,13 +320,17 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       addAuditLog('CIERRE_SESION', `Sesión cerrada`, currentUser.id, currentUser.name);
     }
     setCurrentUserId(null);
+    localStorage.removeItem(`${STORAGE_KEY}_current_user_id`);
+    sessionStorage.removeItem(`${STORAGE_KEY}_session_active`);
   };
 
   const switchUserQuick = (userId: string) => {
     const user = users.find((u) => u.id === userId);
     if (user) {
       setCurrentUserId(userId);
-      addAuditLog('CAMBIO_USUARIO', `Cambio rápido a usuario "${user.username}"`, user.id, user.name);
+      localStorage.setItem(`${STORAGE_KEY}_current_user_id`, user.id);
+      sessionStorage.setItem(`${STORAGE_KEY}_session_active`, 'true');
+      addAuditLog('CAMBIO_USUARIO', `Cambio a usuario "${user.username}"`, user.id, user.name);
     }
   };
 
@@ -285,6 +339,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     username: string;
     name: string;
     email: string;
+    password?: string;
     role: 'admin' | 'user';
     status: 'activo' | 'inactivo';
     permissions?: Partial<UserPermissions>;
@@ -308,6 +363,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       username: userData.username.trim().toLowerCase(),
       name: userData.name.trim(),
       email: userData.email.trim().toLowerCase(),
+      password: userData.password?.trim() || 'usuario123',
       role: userData.role,
       status: userData.status,
       createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
@@ -361,10 +417,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     addAuditLog('MODIFICACION_PERMISOS', `Actualizados permisos para @${targetUser?.username}`);
   };
 
-  const resetUserPassword = (userId: string) => {
+  const resetUserPassword = (userId: string, newPassword?: string) => {
     const targetUser = users.find((u) => u.id === userId);
-    const tempPass = `Intranet_${Math.floor(1000 + Math.random() * 9000)}!`;
-    addAuditLog('RESETEO_PASSWORD', `Contraseña reseteada para @${targetUser?.username}`);
+    const tempPass = newPassword?.trim() || `Intranet_${Math.floor(1000 + Math.random() * 9000)}!`;
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, password: tempPass } : u))
+    );
+    addAuditLog('RESETEO_PASSWORD', `Contraseña actualizada para @${targetUser?.username}`);
     return tempPass;
   };
 

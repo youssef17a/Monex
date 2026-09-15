@@ -23,9 +23,10 @@ export const DEFAULT_PERMISSIONS_USER = {
 export const INITIAL_USERS: User[] = [
   {
     id: 'user_admin_01',
-    username: 'admin',
-    name: 'Administrador Sistema',
+    username: 'Administrador',
+    name: 'Administrador',
     email: 'admin@intranet.local',
+    password: 'N1had2022.',
     role: 'admin',
     status: 'activo',
     createdAt: '2026-01-10 10:00:00',
@@ -37,6 +38,7 @@ export const INITIAL_USERS: User[] = [
     username: 'carlos',
     name: 'Carlos Domínguez',
     email: 'carlos@intranet.local',
+    password: 'usuario123',
     role: 'user',
     status: 'activo',
     createdAt: '2026-02-01 12:15:00',
@@ -48,6 +50,7 @@ export const INITIAL_USERS: User[] = [
     username: 'elena',
     name: 'Elena Martínez',
     email: 'elena@intranet.local',
+    password: 'usuario123',
     role: 'user',
     status: 'inactivo',
     createdAt: '2026-03-15 09:00:00',

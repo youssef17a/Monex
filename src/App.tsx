@@ -27,9 +27,9 @@ const MainLayout: React.FC = () => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const success = login(loginUsername, loginPassword);
-    if (!success) {
-      setLoginError('Usuario o contraseña no válidos o usuario inactivo.');
+    const res = login(loginUsername, loginPassword);
+    if (!res.success) {
+      setLoginError(res.message || 'Usuario o contraseña no válidos o usuario inactivo.');
     } else {
       setLoginError('');
     }
@@ -50,7 +50,7 @@ const MainLayout: React.FC = () => {
             </div>
             <h1 className="text-xl font-bold text-slate-100 tracking-tight">Gestor Financiero Intranet</h1>
             <p className="text-xs text-slate-400 mt-1">
-              Ubuntu Server 192.168.1.150 • Servidor privado local
+              Ubuntu Server • Acceso Privado Autenticado
             </p>
           </div>
 
@@ -63,13 +63,13 @@ const MainLayout: React.FC = () => {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Usuario de red intranet
+                Usuario
               </label>
               <div className="relative">
                 <input
                   type="text"
                   required
-                  placeholder="ej: admin, carlos, laura"
+                  placeholder="Administrador"
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500 transition-colors"
@@ -103,44 +103,36 @@ const MainLayout: React.FC = () => {
             </button>
           </form>
 
-          {/* Quick Demo Credentials */}
+          {/* Quick Access Credentials */}
           <div className="mt-8 pt-6 border-t border-slate-800/80">
             <span className="text-[11px] font-semibold text-slate-400 block mb-2 text-center uppercase tracking-wider">
-              Acceso rápido para pruebas
+              Credenciales de Administrador
             </span>
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="space-y-2 text-xs">
               <button
                 type="button"
                 onClick={() => {
-                  setLoginUsername('admin');
-                  setLoginPassword('intranet2026');
+                  setLoginUsername('Administrador');
+                  setLoginPassword('N1had2022.');
                 }}
-                className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500 text-left transition-colors"
+                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500 text-left transition-colors flex items-center justify-between"
               >
-                <div className="flex items-center gap-1.5 text-amber-400 font-semibold">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Admin</span>
+                <div>
+                  <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Administrador</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 block mt-0.5 font-mono">
+                    User: Administrador | Clave: N1had2022.
+                  </span>
                 </div>
-                <span className="text-[10px] text-slate-400 block mt-0.5">@admin (Control total)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setLoginUsername('carlos');
-                  setLoginPassword('usuario123');
-                }}
-                className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500 text-left transition-colors"
-              >
-                <div className="flex items-center gap-1.5 text-indigo-400 font-semibold">
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>Usuario</span>
-                </div>
-                <span className="text-[10px] text-slate-400 block mt-0.5">@carlos (Vista personal)</span>
+                <span className="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-300 font-medium">
+                  Rellenar
+                </span>
               </button>
             </div>
             <p className="text-[10px] text-slate-400 text-center mt-3">
-              Sin registro público. Solo administradores pueden crear usuarios nuevos.
+              Con el Administrador puedes crear nuevos usuarios y restablecer contraseñas.
             </p>
           </div>
         </div>
@@ -174,7 +166,7 @@ const MainLayout: React.FC = () => {
               : activeTab === 'financiaciones'
               ? 'Financiaciones y Cuotas'
               : activeTab === 'presupuestos'
-              ? 'Gastos Previstos por Mes y Previsión'
+              ? 'Gastos mes'
               : activeTab === 'categorias'
               ? 'Categorías Financieras'
               : activeTab === 'admin'

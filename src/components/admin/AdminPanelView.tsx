@@ -90,6 +90,7 @@ export const AdminPanelView: React.FC = () => {
       name: name.trim(),
       username: username.trim(),
       email: email.trim() || `${username.trim()}@intranet.local`,
+      password: password.trim() || 'usuario123',
       role,
       status,
       permissions: userPerms,

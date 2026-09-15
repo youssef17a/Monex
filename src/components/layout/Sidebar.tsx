@@ -46,7 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'cuentas', label: 'Cuentas', icon: WalletCards, badge: null },
     { id: 'transacciones', label: 'Transacciones', icon: ArrowLeftRight, badge: null },
     { id: 'financiaciones', label: 'Financiaciones y Cuotas', icon: ReceiptText, badge: 'Alertas' },
-    { id: 'presupuestos', label: 'Gastos Previstos por Mes', icon: Calendar, badge: 'Previsión' },
+    { id: 'presupuestos', label: 'Gastos mes', icon: Calendar, badge: null },
     { id: 'categorias', label: 'Categorías', icon: Tag, badge: null },
   ];
 
@@ -96,12 +96,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Current User Card & Fast Switcher */}
+        {/* Current User Card */}
         {currentUser && (
           <div className="mx-3 my-3 p-3 rounded-xl bg-slate-950/60 border border-slate-800/70">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-indigo-600/30 border border-indigo-500/30 flex items-center justify-center text-indigo-300 font-semibold text-xs">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600/30 border border-emerald-500/30 flex items-center justify-center text-emerald-300 font-semibold text-xs">
                   {currentUser.name.substring(0, 2).toUpperCase()}
                 </div>
                 <div className="truncate">
@@ -118,30 +118,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 {currentUser.role}
               </span>
-            </div>
-
-            {/* Quick Switch for Demo Testing */}
-            <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 flex items-center gap-1">
-                <Users className="w-3 h-3" /> Cambiar:
-              </span>
-              <div className="flex gap-1">
-                {users.map((u) => (
-                  <button
-                    key={u.id}
-                    id={`quick-switch-${u.username}`}
-                    onClick={() => switchUserQuick(u.id)}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                      u.id === currentUser.id
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                    }`}
-                    title={`Cambiar a ${u.name} (${u.role})`}
-                  >
-                    {u.username}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         )}
