@@ -71,9 +71,9 @@ const MainLayout: React.FC = () => {
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-950/50">
               <HardDrive className="w-7 h-7 text-slate-950" />
             </div>
-            <h1 className="text-xl font-bold text-slate-100 tracking-tight">Gestor Financiero Intranet</h1>
+            <h1 className="text-2xl font-black text-slate-100 tracking-tight">Monex</h1>
             <p className="text-xs text-slate-400 mt-1">
-              Acceso Autenticado Privado
+              Gestión Financiera Personal
             </p>
           </div>
 

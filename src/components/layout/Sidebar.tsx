@@ -86,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div>
               <h1 className="font-bold text-slate-100 text-base tracking-tight leading-tight flex items-center gap-1.5">
-                Finanzas Intranet
+                Monex
               </h1>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />

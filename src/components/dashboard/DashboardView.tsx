@@ -228,7 +228,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             Hola, {currentUser?.name.split(' ')[0]} 👋
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Resumen financiero en tiempo real • Servidor Intranet Ubuntu (192.168.1.150)
+            Resumen financiero en tiempo real • Monex • Servidor Ubuntu (192.168.1.150)
           </p>
         </div>
         <div className="flex items-center gap-2">

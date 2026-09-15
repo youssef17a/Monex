@@ -46,7 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {activeTabTitle}
           </h2>
           <p className="text-xs text-slate-400 hidden sm:block">
-            Intranet privada • {currentUser?.name} ({currentUser?.role})
+            Monex • {currentUser?.name} ({currentUser?.role})
           </p>
         </div>
       </div>
