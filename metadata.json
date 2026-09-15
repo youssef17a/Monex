@@ -1,0 +1,6 @@
+{
+  "name": "Gestor Financiero Intranet",
+  "description": "Sistema privado de gestión financiera personal, control de cuentas, transacciones, cuotas de financiación, alertas de pago y panel de administración multiusuario con roles y permisos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
