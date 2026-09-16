@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { formatCurrency, getCategoryIcon } from '../../lib/formatters';
+import { useFinance } from '../../context/FinanceContext';
 
 interface CategoryBreakdown {
   id: string;
@@ -16,6 +17,7 @@ interface CategoryDonutChartProps {
 }
 
 export const CategoryDonutChart: React.FC<CategoryDonutChartProps> = ({ categories, totalGastos }) => {
+  const { theme } = useFinance();
   const [hoveredCat, setHoveredCat] = useState<string | null>(null);
 
   if (totalGastos === 0 || categories.length === 0) {
@@ -45,7 +47,7 @@ export const CategoryDonutChart: React.FC<CategoryDonutChartProps> = ({ categori
             cy={size / 2}
             r={radius}
             fill="transparent"
-            stroke="#1e293b"
+            stroke={theme === 'light' ? '#e2e8f0' : '#1e293b'}
             strokeWidth={strokeWidth}
           />
           {categories.map((cat) => {
@@ -113,7 +115,13 @@ export const CategoryDonutChart: React.FC<CategoryDonutChartProps> = ({ categori
               onMouseEnter={() => setHoveredCat(cat.id)}
               onMouseLeave={() => setHoveredCat(null)}
               className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
-                isHovered ? 'bg-slate-800' : 'hover:bg-slate-800/50'
+                isHovered
+                  ? theme === 'light'
+                    ? 'bg-slate-100'
+                    : 'bg-slate-800'
+                  : theme === 'light'
+                  ? 'hover:bg-slate-50'
+                  : 'hover:bg-slate-800/50'
               }`}
             >
               <div className="flex items-center gap-2 min-w-0">

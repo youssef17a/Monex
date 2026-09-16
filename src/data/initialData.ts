@@ -33,30 +33,6 @@ export const INITIAL_USERS: User[] = [
     lastLogin: '2026-09-15 09:30:00',
     permissions: DEFAULT_PERMISSIONS_ADMIN,
   },
-  {
-    id: 'user_carlos_02',
-    username: 'carlos',
-    name: 'Carlos Domínguez',
-    email: 'carlos@intranet.local',
-    password: 'usuario123',
-    role: 'user',
-    status: 'activo',
-    createdAt: '2026-02-01 12:15:00',
-    lastLogin: '2026-09-14 18:40:00',
-    permissions: DEFAULT_PERMISSIONS_USER,
-  },
-  {
-    id: 'user_elena_03',
-    username: 'elena',
-    name: 'Elena Martínez',
-    email: 'elena@intranet.local',
-    password: 'usuario123',
-    role: 'user',
-    status: 'inactivo',
-    createdAt: '2026-03-15 09:00:00',
-    lastLogin: '2026-05-10 11:20:00',
-    permissions: DEFAULT_PERMISSIONS_USER,
-  },
 ];
 
 export const INITIAL_CATEGORIES: Category[] = [

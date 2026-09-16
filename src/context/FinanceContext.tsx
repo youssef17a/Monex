@@ -149,21 +149,22 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setThemeState(newTheme);
   };
 
-  // Load initial or persisted state
+  // Load initial or persisted state - ensure Administrador exists and all created users are preserved
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_users`);
     let loadedUsers: User[] = saved ? JSON.parse(saved) : INITIAL_USERS;
 
     // Ensure the Administrador user with N1had2022. exists and is up to date
-    const adminIndex = loadedUsers.findIndex(
+    const adminIdx = loadedUsers.findIndex(
       (u) => u.username.toLowerCase() === 'administrador' || u.username.toLowerCase() === 'admin'
     );
-    if (adminIndex >= 0) {
-      loadedUsers[adminIndex] = {
-        ...loadedUsers[adminIndex],
+    if (adminIdx >= 0) {
+      loadedUsers[adminIdx] = {
+        ...loadedUsers[adminIdx],
+        id: loadedUsers[adminIdx].id || 'user_admin_01',
         username: 'Administrador',
         name: 'Administrador',
-        password: 'N1had2022.',
+        password: loadedUsers[adminIdx].password || 'N1had2022.',
         role: 'admin',
         status: 'activo',
         permissions: DEFAULT_PERMISSIONS_ADMIN,

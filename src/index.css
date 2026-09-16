@@ -36,6 +36,7 @@ body.light,
 }
 
 .light .bg-slate-900,
+.light .bg-slate-900\/95,
 .light .bg-slate-900\/90,
 .light .bg-slate-900\/80 {
   background-color: #ffffff !important;
@@ -47,6 +48,47 @@ body.light,
 .light .border-slate-800\/70,
 .light .border-slate-800\/60 {
   border-color: #e2e8f0 !important;
+}
+
+/* Light mode sidebar and navigation */
+.light aside#main-sidebar {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.light #main-sidebar .text-slate-400 {
+  color: #64748b !important;
+}
+
+.light #main-sidebar button:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.light #main-sidebar button[class*="bg-emerald-500"] {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #047857 !important;
+}
+
+.light #main-sidebar button[class*="bg-teal-500"] {
+  background-color: #f0fdfa !important;
+  border-color: #99f6e4 !important;
+  color: #0f766e !important;
+}
+
+.light #main-sidebar .border-t,
+.light #main-sidebar .border-b {
+  border-color: #e2e8f0 !important;
+}
+
+.light .hover\:bg-slate-800\/60:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.light .hover\:text-slate-200:hover,
+.light .hover\:text-slate-100:hover {
+  color: #0f172a !important;
 }
 
 .light .text-slate-100 {

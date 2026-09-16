@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Clock,
   ChevronRight,
-  AlertTriangle,
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { formatCurrency, formatDateRelative, getCategoryIcon } from '../../lib/formatters';
@@ -326,8 +325,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {currentBalance >= 0 ? (
               <span className="text-emerald-400 font-medium">Ahorro neto generado</span>
             ) : (
-              <span className="text-rose-400 font-medium flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Déficit este mes
+              <span className="text-rose-400 font-medium">
+                Déficit este mes
               </span>
             )}
           </div>
@@ -335,18 +334,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Previsión de Gastos de Este Mes (Banner / Actionable Card) */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-950/20 via-slate-900 to-slate-900 border border-amber-500/30 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/80 border border-slate-800/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start sm:items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700/60 flex items-center justify-center text-slate-300 shrink-0">
             <Calendar className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-slate-100">
-                Gastos Previstos de Este Mes: <span className="text-amber-300 font-mono-num font-bold">{formatCurrency(previstosDelMes.total)}</span>
+                Gastos Previstos de Este Mes: <span className="text-slate-200 font-mono-num font-bold">{formatCurrency(previstosDelMes.total)}</span>
               </h3>
               {previstosDelMes.seasonalCount > 0 && (
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
                   <Sparkles className="w-3 h-3" /> Incluye {previstosDelMes.seasonalCount} estacionales
                 </span>
               )}
@@ -360,7 +359,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => onNavigate ? onNavigate('presupuestos') : onNavigateToFinanciaciones?.()}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-medium text-xs border border-slate-700/80 shadow transition-all"
           >
             <Sliders className="w-3.5 h-3.5" />
             <span>Ver y Ajustar Este Mes</span>
@@ -421,7 +420,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
                 <span>Cuotas de Financiación del Mes</span>
                 {cuotasDelMes.filter((c) => !c.cuota.pagada).length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
                     {cuotasDelMes.filter((c) => !c.cuota.pagada).length} pendientes
                   </span>
                 )}
@@ -450,7 +449,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${
                     cuota.pagada
                       ? 'bg-slate-950/40 border-slate-800/60 opacity-80'
-                      : 'bg-slate-950/80 border-amber-500/30 shadow-sm'
+                      : 'bg-slate-950/80 border-slate-800/80 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -460,14 +459,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       className={`p-1.5 rounded-lg transition-colors ${
                         cuota.pagada
                           ? 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'
-                          : 'text-slate-400 hover:text-amber-300 bg-slate-800'
+                          : 'text-slate-400 hover:text-slate-200 bg-slate-800'
                       }`}
                       title={cuota.pagada ? 'Cuota pagada (clic para desmarcar)' : 'Marcar como pagada'}
                     >
                       {cuota.pagada ? (
                         <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                       ) : (
-                        <Clock className="w-5 h-5 text-amber-400" />
+                        <Clock className="w-5 h-5 text-slate-400" />
                       )}
                     </button>
                     <div>
@@ -490,7 +489,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block mt-0.5 ${
                         cuota.pagada
                           ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                          : 'bg-slate-800 text-slate-300 border border-slate-700'
                       }`}
                     >
                       {cuota.pagada ? 'Pagada' : 'Pendiente'}

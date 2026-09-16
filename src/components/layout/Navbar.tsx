@@ -68,9 +68,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           className="relative p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/60 border border-slate-800 transition-colors"
           title={`${pendingCuotasThisMonth.length} cuota(s) pendiente(s) este mes`}
         >
-          <Bell className="w-4 h-4 text-amber-400" />
+          <Bell className="w-4 h-4 text-slate-300" />
           {pendingCuotasThisMonth.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold flex items-center justify-center animate-pulse">
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center">
               {pendingCuotasThisMonth.length}
             </span>
           )}

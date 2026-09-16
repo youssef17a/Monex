@@ -4,7 +4,6 @@ import {
   Sliders,
   Sparkles,
   CheckCircle2,
-  AlertTriangle,
   RotateCcw,
   ReceiptText,
   Plus,
@@ -377,7 +376,7 @@ export const MonthlyExpensesForecast: React.FC = () => {
             {netEstimatedFlow >= 0 ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             ) : (
-              <AlertTriangle className="w-4 h-4 text-rose-400" />
+              <TrendingDown className="w-4 h-4 text-rose-400" />
             )}
           </div>
           <div

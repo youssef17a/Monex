@@ -35,6 +35,7 @@ export const BudgetsView: React.FC = () => {
     deleteBudget,
     deleteRecurrent,
     toggleRecurrent,
+    theme,
   } = useFinance();
 
   // Active sub-tab inside Presupuestos y Proyección
@@ -171,7 +172,7 @@ export const BudgetsView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-100 flex items-center gap-2">
-            <PieChart className="w-6 h-6 text-amber-400" />
+            <PieChart className="w-6 h-6 text-emerald-400" />
             <span>Previsión y Presupuestos Mensuales</span>
           </h1>
           <p className="text-xs text-slate-400 mt-1">
@@ -195,18 +196,22 @@ export const BudgetsView: React.FC = () => {
       </div>
 
       {/* Sub-Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-1 overflow-x-auto">
+      <div className={`flex items-center gap-2 border-b pb-1 overflow-x-auto ${theme === 'light' ? 'border-slate-200' : 'border-slate-800'}`}>
         <button
           onClick={() => setActiveSubTab('gastos-mes')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'gastos-mes'
-              ? 'bg-amber-500/15 border border-amber-500/40 text-amber-300 shadow-sm'
+              ? theme === 'light'
+                ? 'bg-emerald-50 border border-emerald-300 text-emerald-800 shadow-xs'
+                : 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 shadow-sm'
+              : theme === 'light'
+              ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
           }`}
         >
-          <Calendar className="w-4 h-4 text-amber-400" />
+          <Calendar className="w-4 h-4 text-emerald-500" />
           <span>Gastos Previstos por Mes</span>
-          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-200 font-mono">
+          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${theme === 'light' ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-500/20 text-emerald-200'}`}>
             Interactivo
           </span>
         </button>
@@ -215,11 +220,15 @@ export const BudgetsView: React.FC = () => {
           onClick={() => setActiveSubTab('proyeccion')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'proyeccion'
-              ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 shadow-sm'
+              ? theme === 'light'
+                ? 'bg-emerald-50 border border-emerald-300 text-emerald-800 shadow-xs'
+                : 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 shadow-sm'
+              : theme === 'light'
+              ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
           }`}
         >
-          <TrendingUp className="w-4 h-4 text-emerald-400" />
+          <TrendingUp className="w-4 h-4 text-emerald-500" />
           <span>Tesorería a 6 Meses</span>
         </button>
 
@@ -227,11 +236,15 @@ export const BudgetsView: React.FC = () => {
           onClick={() => setActiveSubTab('limites')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'limites'
-              ? 'bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 shadow-sm'
+              ? theme === 'light'
+                ? 'bg-indigo-50 border border-indigo-300 text-indigo-800 shadow-xs'
+                : 'bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 shadow-sm'
+              : theme === 'light'
+              ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
           }`}
         >
-          <PieChart className="w-4 h-4 text-indigo-400" />
+          <PieChart className="w-4 h-4 text-indigo-500" />
           <span>Límites por Categoría</span>
         </button>
 
@@ -239,11 +252,15 @@ export const BudgetsView: React.FC = () => {
           onClick={() => setActiveSubTab('recurrentes')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
             activeSubTab === 'recurrentes'
-              ? 'bg-slate-800 border border-slate-700 text-slate-100 shadow-sm'
+              ? theme === 'light'
+                ? 'bg-slate-200 border border-slate-300 text-slate-900 shadow-xs'
+                : 'bg-slate-800 border border-slate-700 text-slate-100 shadow-sm'
+              : theme === 'light'
+              ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
           }`}
         >
-          <Sparkles className="w-4 h-4 text-slate-400" />
+          <Sparkles className="w-4 h-4 text-slate-500" />
           <span>Gestor de Fijos y Temporadas ({recurrents.length})</span>
         </button>
       </div>
@@ -363,7 +380,7 @@ export const BudgetsView: React.FC = () => {
             <button
               id="btn-nuevo-presupuesto"
               onClick={() => setIsBudgetModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition-all"
             >
               <Plus className="w-4 h-4" />
               <span>Fijar Límite</span>
