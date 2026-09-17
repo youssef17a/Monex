@@ -36,6 +36,7 @@ DB_NAME="monex_db"
 DB_USER="monex_user"
 DB_PASS="Monex2026Secure."
 DB_HOST="localhost"
+SERVER_IP="192.168.1.12"
 SQL_FILE="$(dirname "$0")/schema_monex.sql"
 
 echo -e "${BLUE}[1/5] Verificando dependencias en Ubuntu Server...${NC}"
@@ -61,20 +62,44 @@ else
   exit 1
 fi
 
-# 4. Crear Base de Datos y Usuario
+# 4. Crear Base de Datos y Usuario (con acceso local y desde la IP del servidor)
 echo -e "${BLUE}[3/5] Configurando base de datos '${DB_NAME}' y usuario '${DB_USER}'...${NC}"
 
 mariadb -e "
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '${DB_USER}'@'${DB_HOST}' IDENTIFIED BY '${DB_PASS}';
-ALTER USER '${DB_USER}'@'${DB_HOST}' IDENTIFIED BY '${DB_PASS}';
-GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'${DB_HOST}';
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
+ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
+
+CREATE USER IF NOT EXISTS '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';
+ALTER USER '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'127.0.0.1';
+
+CREATE USER IF NOT EXISTS '${DB_USER}'@'${SERVER_IP}' IDENTIFIED BY '${DB_PASS}';
+ALTER USER '${DB_USER}'@'${SERVER_IP}' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'${SERVER_IP}';
+
+CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
+ALTER USER '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';
 FLUSH PRIVILEGES;
 " 2>/dev/null || mysql -e "
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '${DB_USER}'@'${DB_HOST}' IDENTIFIED BY '${DB_PASS}';
-ALTER USER '${DB_USER}'@'${DB_HOST}' IDENTIFIED BY '${DB_PASS}';
-GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'${DB_HOST}';
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
+ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
+
+CREATE USER IF NOT EXISTS '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';
+ALTER USER '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'127.0.0.1';
+
+CREATE USER IF NOT EXISTS '${DB_USER}'@'${SERVER_IP}' IDENTIFIED BY '${DB_PASS}';
+ALTER USER '${DB_USER}'@'${SERVER_IP}' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'${SERVER_IP}';
+
+CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
+ALTER USER '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';
 FLUSH PRIVILEGES;
 "
 
@@ -273,13 +298,16 @@ echo -e "\n${GREEN}${BOLD}======================================================
 echo -e "${GREEN}${BOLD}       ¡INSTALACIÓN COMPLETADA CON ÉXITO EN UBUNTU!              ${NC}"
 echo -e "${GREEN}${BOLD}=================================================================${NC}"
 echo -e "Detalles de la conexión a MariaDB:"
-echo -e "  - ${BOLD}Base de Datos:${NC} ${CYAN}${DB_NAME}${NC}"
-echo -e "  - ${BOLD}Usuario DB:${NC}    ${CYAN}${DB_USER}${NC}"
-echo -e "  - ${BOLD}Contraseña DB:${NC} ${CYAN}${DB_PASS}${NC}"
-echo -e "  - ${BOLD}Host:${NC}          ${CYAN}${DB_HOST}:3306${NC}"
+echo -e "  - ${BOLD}IP del Servidor:${NC} ${CYAN}${SERVER_IP}${NC}"
+echo -e "  - ${BOLD}Base de Datos:${NC}   ${CYAN}${DB_NAME}${NC}"
+echo -e "  - ${BOLD}Usuario DB:${NC}      ${CYAN}${DB_USER}${NC}"
+echo -e "  - ${BOLD}Contraseña DB:${NC}   ${CYAN}${DB_PASS}${NC}"
+echo -e "  - ${BOLD}Puerto DB:${NC}       ${CYAN}3306${NC}"
+echo -e "\nAcceso Web Monex (Nginx):"
+echo -e "  - ${BOLD}URL de acceso:${NC}   ${YELLOW}http://${SERVER_IP}${NC}"
 echo -e "\nUsuario inicial de Monex:"
-echo -e "  - ${BOLD}Usuario:${NC}       ${YELLOW}Administrador${NC}"
-echo -e "  - ${BOLD}Contraseña:${NC}    ${YELLOW}N1had2022.${NC}"
+echo -e "  - ${BOLD}Usuario:${NC}         ${YELLOW}Administrador${NC}"
+echo -e "  - ${BOLD}Contraseña:${NC}      ${YELLOW}N1had2022.${NC}"
 echo -e "\nPara probar la conexión en consola ejecuta:"
 echo -e "  ${BOLD}mariadb -u ${DB_USER} -p'${DB_PASS}' ${DB_NAME}${NC}"
 echo -e "${GREEN}=================================================================${NC}\n"

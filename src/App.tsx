@@ -15,7 +15,7 @@ import { FloatingActionButton } from './components/common/FloatingActionButton';
 import { Lock, HardDrive, ArrowRight, Sun, Moon } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
-  const { currentUser, login, theme, toggleTheme } = useFinance();
+  const { currentUser, login, theme, toggleTheme, isLoading } = useFinance();
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isOpenMobile, setIsOpenMobile] = useState(false);
   const [isQuickTxOpen, setIsQuickTxOpen] = useState(false);
@@ -24,16 +24,33 @@ const MainLayout: React.FC = () => {
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = login(loginUsername, loginPassword);
-    if (!res.success) {
-      setLoginError(res.message || 'Usuario o contraseña no válidos o usuario inactivo.');
-    } else {
-      setLoginError('');
+    setIsSubmitting(true);
+    setLoginError('');
+    try {
+      const res = await login(loginUsername, loginPassword);
+      if (!res.success) {
+        setLoginError(res.message || 'Usuario o contraseña no válidos o usuario inactivo.');
+      }
+    } catch (err: any) {
+      setLoginError(err?.message || 'Error al conectar con el servidor.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  // If loading initial session from server
+  if (isLoading && !currentUser) {
+    return (
+      <div className={`min-h-screen ${theme === 'light' ? 'light bg-slate-100 text-slate-900' : 'bg-slate-950 text-slate-100'} flex flex-col justify-center items-center p-4 transition-colors`}>
+        <div className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-3" />
+        <p className="text-xs text-slate-400 font-medium">Verificando sesión segura...</p>
+      </div>
+    );
+  }
 
   // If not logged in, render the clean Intranet Login Screen
   if (!currentUser) {
@@ -119,9 +136,10 @@ const MainLayout: React.FC = () => {
             <button
               type="submit"
               id="btn-login-submit"
-              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-950/40 transition-all flex items-center justify-center gap-2"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-sm shadow-lg shadow-emerald-950/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
             >
-              <span>Acceder al Sistema</span>
+              <span>{isSubmitting ? 'Verificando...' : 'Acceder al Sistema'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>

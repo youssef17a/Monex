@@ -29,7 +29,7 @@ export const ServerDocsView: React.FC = () => {
   const nginxConfig = `# /etc/nginx/sites-available/monex
 server {
     listen 80;
-    server_name 192.168.1.150 monex.local;
+    server_name 192.168.1.12 monex.local _;
     root /var/www/monex/dist;
 
     index index.html;
@@ -37,11 +37,27 @@ server {
     access_log /var/log/nginx/monex_access.log;
     error_log  /var/log/nginx/monex_error.log;
 
+    # Backend Node.js Express API Proxy (puerto 3000)
+    location /api/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 60s;
+    }
+
+    # Frontend SPA Fallback (React + Vite)
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # Bloqueo de archivos ocultos o sensibles
+    # Bloqueo de archivos ocultos o sensibles (.env, .git)
     location ~ /\\.(?!well-known).* {
         deny all;
     }
@@ -239,6 +255,57 @@ server {
         </div>
       </div>
 
+      {/* Production Credentials & Ports Summary */}
+      <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-emerald-500/30 space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+            <CheckCircle2 className="w-5 h-5" />
+            <span>Datos y Credenciales Configurados (Ubuntu Server 192.168.1.12)</span>
+          </div>
+          <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-mono">
+            IP: 192.168.1.12
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+            <div className="text-slate-400 font-medium">Servidor Web Nginx (Frontend)</div>
+            <div className="font-mono text-emerald-400 font-bold text-sm">http://192.168.1.12</div>
+            <div className="text-slate-400">Puerto HTTP: <span className="text-slate-200 font-mono">80</span></div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+            <div className="text-slate-400 font-medium">Backend Express (API)</div>
+            <div className="font-mono text-sky-400 font-bold text-sm">http://127.0.0.1:3000</div>
+            <div className="text-slate-400">Puerto interno: <span className="text-slate-200 font-mono">3000</span></div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+            <div className="text-slate-400 font-medium">Base de Datos MariaDB</div>
+            <div className="font-mono text-amber-400 font-bold text-sm">192.168.1.12:3306</div>
+            <div className="text-slate-400">BD: <span className="text-slate-200 font-mono">monex_db</span></div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+            <div className="text-slate-400 font-medium">Usuario MariaDB</div>
+            <div className="font-mono text-slate-200 font-bold">monex_user</div>
+            <div className="text-slate-400">Host: <span className="text-slate-200 font-mono">localhost / 192.168.1.12</span></div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+            <div className="text-slate-400 font-medium">Contraseña MariaDB (DB_PASSWORD)</div>
+            <div className="font-mono text-amber-300 font-bold select-all">Monex2026Secure.</div>
+            <div className="text-slate-400">Permisos: <span className="text-slate-200">ALL PRIVILEGES</span></div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+            <div className="text-slate-400 font-medium">Acceso Administrador Monex</div>
+            <div className="font-mono text-emerald-300 font-bold">Administrador</div>
+            <div className="text-slate-400">Contraseña: <span className="text-amber-300 font-mono font-bold select-all">N1had2022.</span></div>
+          </div>
+        </div>
+      </div>
+
       {/* SSH Steps Guide */}
       <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
         <div className="flex items-center gap-2 text-amber-400 text-sm font-bold">
@@ -264,8 +331,8 @@ sudo bash setup_monex_db.sh`}
             <strong className="text-slate-100">Opción 2 (Subir el archivo descargado por SCP o FileZilla):</strong>
           </p>
           <pre className="p-3 rounded-xl bg-slate-950 font-mono text-xs text-slate-300 overflow-x-auto border border-slate-800/80">
-{`# Copiar desde tu ordenador al servidor:
-scp setup_monex_db.sh usuario@tu_ip_ubuntu:/home/usuario/
+{`# Copiar desde tu ordenador al servidor Ubuntu (192.168.1.12):
+scp setup_monex_db.sh usuario@192.168.1.12:/home/usuario/
 
 # En el servidor:
 cd /home/usuario

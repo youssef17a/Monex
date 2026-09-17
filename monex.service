@@ -1,0 +1,25 @@
+[Unit]
+Description=Monex - Gestor Financiero Multi-Usuario Backend Node.js
+After=network.target mariadb.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/monex
+ExecStart=/usr/bin/node dist/server.cjs
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=monex-app
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=DB_HOST=localhost
+Environment=DB_PORT=3306
+Environment=DB_USER=monex_user
+Environment=DB_PASSWORD=Monex2026Secure.
+Environment=DB_NAME=monex_db
+Environment=JWT_SECRET=monex_production_jwt_secret_token_secure_2026
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import {
   User,
   Account,
@@ -13,20 +13,7 @@ import {
   AuditLog,
   UserPermissions,
 } from '../types';
-import {
-  INITIAL_USERS,
-  INITIAL_CATEGORIES,
-  INITIAL_ACCOUNTS,
-  INITIAL_TRANSACTIONS,
-  INITIAL_FINANCIACIONES,
-  INITIAL_BUDGETS,
-  INITIAL_RECURRENTS,
-  INITIAL_ONE_OFF_EXPENSES,
-  INITIAL_AUDIT_LOGS,
-  generateCuotasList,
-  DEFAULT_PERMISSIONS_USER,
-  DEFAULT_PERMISSIONS_ADMIN,
-} from '../data/initialData';
+import { api } from '../services/api';
 
 interface FinanceContextType {
   currentUser: User | null;
@@ -39,10 +26,11 @@ interface FinanceContextType {
   recurrents: RecurrentMovement[];
   oneOffExpenses: OneOffPlannedExpense[];
   auditLogs: AuditLog[];
+  isLoading: boolean;
   
   // Auth & Session
-  login: (username: string, password?: string) => { success: boolean; message?: string };
-  logout: () => void;
+  login: (username: string, password?: string) => Promise<{ success: boolean; message?: string }>;
+  logout: () => Promise<void>;
   switchUserQuick: (userId: string) => void;
   
   // Admin Operations
@@ -54,24 +42,24 @@ interface FinanceContextType {
     role: 'admin' | 'user';
     status: 'activo' | 'inactivo';
     permissions?: Partial<UserPermissions>;
-  }) => { success: boolean; message: string };
-  updateUserStatus: (userId: string, status: 'activo' | 'inactivo') => void;
-  updateUserRole: (userId: string, role: 'admin' | 'user') => void;
-  updateUserPermissions: (userId: string, permissions: UserPermissions) => void;
-  resetUserPassword: (userId: string, newPassword?: string) => string; // returns saved password
-  deleteUser: (userId: string) => { success: boolean; message: string };
+  }) => Promise<{ success: boolean; message: string }>;
+  updateUserStatus: (userId: string, status: 'activo' | 'inactivo') => Promise<void>;
+  updateUserRole: (userId: string, role: 'admin' | 'user') => Promise<void>;
+  updateUserPermissions: (userId: string, permissions: UserPermissions) => Promise<void>;
+  resetUserPassword: (userId: string, newPassword?: string) => Promise<string>;
+  deleteUser: (userId: string) => Promise<{ success: boolean; message: string }>;
   
   // Financial Operations
   getAccountBalance: (accountId: string) => number;
   getTotalBalance: () => number;
-  createAccount: (acc: Omit<Account, 'id' | 'userId' | 'createdAt'>) => void;
-  updateAccount: (id: string, partial: Partial<Account>) => void;
-  deleteAccount: (id: string) => void;
+  createAccount: (acc: Omit<Account, 'id' | 'userId' | 'createdAt'>) => Promise<void>;
+  updateAccount: (id: string, partial: Partial<Account>) => Promise<void>;
+  deleteAccount: (id: string) => Promise<void>;
   
   // Transactions
-  createTransaction: (tx: Omit<Transaction, 'id' | 'userId' | 'createdAt'>) => void;
-  updateTransaction: (id: string, tx: Partial<Transaction>) => void;
-  deleteTransaction: (id: string) => void;
+  createTransaction: (tx: Omit<Transaction, 'id' | 'userId' | 'createdAt'>) => Promise<void>;
+  updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
   
   // Financing & Quotas
   createFinanciacion: (fin: {
@@ -86,29 +74,29 @@ interface FinanceContextType {
     cuentaId: string;
     categoriaId: string;
     notas?: string;
-  }) => void;
-  toggleCuotaPagada: (cuotaId: string, customFechaPago?: string) => void;
-  deleteFinanciacion: (id: string) => void;
+  }) => Promise<void>;
+  toggleCuotaPagada: (cuotaId: string, customFechaPago?: string) => Promise<void>;
+  deleteFinanciacion: (id: string) => Promise<void>;
   
   // Categories
-  createCategory: (cat: { nombre: string; icono: string; color: string; tipo: 'gasto' | 'ingreso' }) => void;
-  deleteCategory: (id: string) => void;
+  createCategory: (cat: { nombre: string; icono: string; color: string; tipo: 'gasto' | 'ingreso' }) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
   
   // Budgets & Recurrents
-  saveBudget: (categoriaId: string, limiteMensual: number, periodo: string) => void;
-  deleteBudget: (id: string) => void;
-  createRecurrent: (rec: Omit<RecurrentMovement, 'id' | 'userId'>) => void;
-  updateRecurrent: (id: string, partial: Partial<RecurrentMovement>) => void;
-  toggleRecurrent: (id: string) => void;
-  deleteRecurrent: (id: string) => void;
-  setRecurrentMonthOverride: (recurrentId: string, periodo: string, override: MonthOverride) => void;
-  removeRecurrentMonthOverride: (recurrentId: string, periodo: string) => void;
+  saveBudget: (categoriaId: string, limiteMensual: number, periodo: string) => Promise<void>;
+  deleteBudget: (id: string) => Promise<void>;
+  createRecurrent: (rec: Omit<RecurrentMovement, 'id' | 'userId'>) => Promise<void>;
+  updateRecurrent: (id: string, partial: Partial<RecurrentMovement>) => Promise<void>;
+  toggleRecurrent: (id: string) => Promise<void>;
+  deleteRecurrent: (id: string) => Promise<void>;
+  setRecurrentMonthOverride: (recurrentId: string, periodo: string, override: MonthOverride) => Promise<void>;
+  removeRecurrentMonthOverride: (recurrentId: string, periodo: string) => Promise<void>;
   
   // Planned One-off Expenses
-  createOneOffExpense: (expense: Omit<OneOffPlannedExpense, 'id' | 'userId' | 'createdAt'>) => void;
-  updateOneOffExpense: (id: string, partial: Partial<OneOffPlannedExpense>) => void;
-  deleteOneOffExpense: (id: string) => void;
-  toggleOneOffExpensePagado: (id: string) => void;
+  createOneOffExpense: (expense: Omit<OneOffPlannedExpense, 'id' | 'userId' | 'createdAt'>) => Promise<void>;
+  updateOneOffExpense: (id: string, partial: Partial<OneOffPlannedExpense>) => Promise<void>;
+  deleteOneOffExpense: (id: string) => Promise<void>;
+  toggleOneOffExpensePagado: (id: string) => Promise<void>;
 
   // Theme
   theme: 'dark' | 'light';
@@ -119,19 +107,19 @@ interface FinanceContextType {
   resetToDefaultData: () => void;
 }
 
-const STORAGE_KEY = 'gestor_finanzas_intranet_v1';
+const THEME_STORAGE_KEY = 'monex_theme_pref';
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Theme state persisted in localStorage
   const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_theme`);
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
     return saved === 'light' || saved === 'dark' ? saved : 'dark';
   });
 
   useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_theme`, theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
     if (theme === 'light') {
       document.documentElement.classList.add('light');
       document.documentElement.classList.remove('dark');
@@ -149,231 +137,141 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setThemeState(newTheme);
   };
 
-  // Load initial or persisted state - ensure Administrador exists and all created users are preserved
-  const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_users`);
-    let loadedUsers: User[] = saved ? JSON.parse(saved) : INITIAL_USERS;
+  // State
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [users, setUsers] = useState<User[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [financiaciones, setFinanciaciones] = useState<Financiacion[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [recurrents, setRecurrents] = useState<RecurrentMovement[]>([]);
+  const [oneOffExpenses, setOneOffExpenses] = useState<OneOffPlannedExpense[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
-    // Ensure the Administrador user with N1had2022. exists and is up to date
-    const adminIdx = loadedUsers.findIndex(
-      (u) => u.username.toLowerCase() === 'administrador' || u.username.toLowerCase() === 'admin'
-    );
-    if (adminIdx >= 0) {
-      loadedUsers[adminIdx] = {
-        ...loadedUsers[adminIdx],
-        id: loadedUsers[adminIdx].id || 'user_admin_01',
-        username: 'Administrador',
-        name: 'Administrador',
-        password: loadedUsers[adminIdx].password || 'N1had2022.',
-        role: 'admin',
-        status: 'activo',
-        permissions: DEFAULT_PERMISSIONS_ADMIN,
-      };
-    } else {
-      loadedUsers.unshift({
-        id: 'user_admin_01',
-        username: 'Administrador',
-        name: 'Administrador',
-        email: 'admin@intranet.local',
-        password: 'N1had2022.',
-        role: 'admin',
-        status: 'activo',
-        createdAt: '2026-01-10 10:00:00',
-        lastLogin: '2026-09-15 09:30:00',
-        permissions: DEFAULT_PERMISSIONS_ADMIN,
-      });
+  // Function to load all user-specific data from server
+  const loadUserData = useCallback(async (user: User) => {
+    setIsLoading(true);
+    try {
+      const promises: Promise<any>[] = [
+        api.accounts.getAll().catch(() => []),
+        api.transactions.getAll().catch(() => []),
+        api.categories.getAll().catch(() => []),
+        api.financiaciones.getAll().catch(() => []),
+        api.budgets.getAll().catch(() => []),
+        api.recurrents.getAll().catch(() => []),
+        api.oneOffExpenses.getAll().catch(() => []),
+        api.auditLogs.getAll().catch(() => []),
+      ];
+
+      // If admin, also load users
+      if (user.role === 'admin' || user.permissions?.can_access_admin) {
+        promises.push(api.users.getAll().catch(() => []));
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+
+      const [
+        accs,
+        txs,
+        cats,
+        fins,
+        buds,
+        recs,
+        oneOffs,
+        auds,
+        allUsers,
+      ] = await Promise.all(promises);
+
+      setAccounts(accs);
+      setTransactions(txs);
+      setCategories(cats);
+      setFinanciaciones(fins);
+      setBudgets(buds);
+      setRecurrents(recs);
+      setOneOffExpenses(oneOffs);
+      setAuditLogs(auds);
+      if (allUsers && allUsers.length > 0) {
+        setUsers(allUsers);
+      } else {
+        setUsers([user]);
+      }
+    } catch (err) {
+      console.error('[FINANCE CONTEXT] Error cargando datos del usuario:', err);
+    } finally {
+      setIsLoading(false);
     }
-    return loadedUsers;
-  });
+  }, []);
 
-  const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
-    const sessionActive = sessionStorage.getItem(`${STORAGE_KEY}_session_active`);
-    const saved = localStorage.getItem(`${STORAGE_KEY}_current_user_id`);
-    if (sessionActive === 'true' && saved) {
-      return saved;
-    }
-    return null;
-  });
+  // Initial check on mount: verify existing session via /api/auth/me
+  useEffect(() => {
+    let isMounted = true;
 
-  // Admin numbers are strictly cleared so the admin enters real figures by hand
-  const [accounts, setAccounts] = useState<Account[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_accounts`);
-    const loaded = saved ? JSON.parse(saved) : INITIAL_ACCOUNTS;
-    return loaded.filter((a: Account) => a.userId !== 'user_admin_01');
-  });
-
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_transactions`);
-    const loaded = saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
-    return loaded.filter((t: Transaction) => t.userId !== 'user_admin_01');
-  });
-
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_categories`);
-    if (saved) {
+    async function checkCurrentSession() {
       try {
-        const parsed = JSON.parse(saved) as Category[];
-        const existingIds = new Set(parsed.map((c) => c.id));
-        const missing = INITIAL_CATEGORIES.filter((c) => !existingIds.has(c.id));
-        return missing.length > 0 ? [...parsed, ...missing] : parsed;
-      } catch (err) {
-        return INITIAL_CATEGORIES;
+        const res = await api.auth.me();
+        if (isMounted && res.success && res.user) {
+          setCurrentUser(res.user);
+          await loadUserData(res.user);
+        }
+      } catch {
+        // No active session, prompt login
+        if (isMounted) {
+          setCurrentUser(null);
+          setIsLoading(false);
+        }
       }
     }
-    return INITIAL_CATEGORIES;
-  });
 
-  const [financiaciones, setFinanciaciones] = useState<Financiacion[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_financiaciones`);
-    const loaded = saved ? JSON.parse(saved) : INITIAL_FINANCIACIONES;
-    return loaded.filter((f: Financiacion) => f.userId !== 'user_admin_01');
-  });
+    checkCurrentSession();
 
-  const [budgets, setBudgets] = useState<Budget[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_budgets`);
-    const loaded = saved ? JSON.parse(saved) : INITIAL_BUDGETS;
-    return loaded.filter((b: Budget) => b.userId !== 'user_admin_01');
-  });
-
-  const [recurrents, setRecurrents] = useState<RecurrentMovement[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_recurrents`);
-    const loaded = saved ? JSON.parse(saved) : INITIAL_RECURRENTS;
-    return loaded.filter((r: RecurrentMovement) => r.userId !== 'user_admin_01');
-  });
-
-  const [oneOffExpenses, setOneOffExpenses] = useState<OneOffPlannedExpense[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_one_off_expenses`);
-    const loaded = saved ? JSON.parse(saved) : INITIAL_ONE_OFF_EXPENSES;
-    return loaded.filter((o: OneOffPlannedExpense) => o.userId !== 'user_admin_01');
-  });
-
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_audit`);
-    return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
-  });
-
-  // Sync to localStorage
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
-    if (currentUserId) {
-      localStorage.setItem(`${STORAGE_KEY}_current_user_id`, currentUserId);
-    } else {
-      localStorage.removeItem(`${STORAGE_KEY}_current_user_id`);
-    }
-  }, [currentUserId]);
-
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_accounts`, JSON.stringify(accounts));
-  }, [accounts]);
-
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_transactions`, JSON.stringify(transactions));
-  }, [transactions]);
-
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_categories`, JSON.stringify(categories));
-  }, [categories]);
-
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_financiaciones`, JSON.stringify(financiaciones));
-  }, [financiaciones]);
-
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_budgets`, JSON.stringify(budgets));
-  }, [budgets]);
-
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_recurrents`, JSON.stringify(recurrents));
-  }, [recurrents]);
-
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_one_off_expenses`, JSON.stringify(oneOffExpenses));
-  }, [oneOffExpenses]);
-
-  useEffect(() => {
-    localStorage.setItem(`${STORAGE_KEY}_audit`, JSON.stringify(auditLogs));
-  }, [auditLogs]);
-
-  const currentUser = useMemo(() => {
-    return users.find((u) => u.id === currentUserId) || null;
-  }, [users, currentUserId]);
-
-  const addAuditLog = (action: string, details: string, userId?: string, userName?: string) => {
-    const newLog: AuditLog = {
-      id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      userId: userId || currentUser?.id || 'anonimo',
-      userName: userName || currentUser?.name || 'Sistema',
-      action,
-      details,
-      ipAddress: '192.168.1.62', // Intranet IP mock
+    return () => {
+      isMounted = false;
     };
-    setAuditLogs((prev) => [newLog, ...prev.slice(0, 99)]);
-  };
+  }, [loadUserData]);
 
-  // Auth
-  const login = (username: string, password?: string) => {
-    const cleanUser = username.trim().toLowerCase();
-    const user = users.find(
-      (u) =>
-        u.username.toLowerCase() === cleanUser ||
-        u.email.toLowerCase() === cleanUser ||
-        (cleanUser === 'administrador' && u.username.toLowerCase() === 'admin') ||
-        (cleanUser === 'admin' && u.username.toLowerCase() === 'administrador')
-    );
-    if (!user) {
-      addAuditLog('ACCESO_FALLIDO', `Intento de acceso con usuario inexistente: "${username}"`);
-      return { success: false, message: 'Usuario no encontrado en la intranet local.' };
-    }
-    if (user.status === 'inactivo') {
-      addAuditLog('ACCESO_BLOQUEADO', `Intento de acceso de usuario inactivo: "${user.username}"`, user.id, user.name);
-      return { success: false, message: 'La cuenta está desactivada por el administrador.' };
-    }
-
-    // Password verification
-    if (user.password) {
-      if (!password || password.trim() !== user.password.trim()) {
-        addAuditLog('ACCESO_FALLIDO', `Contraseña incorrecta para usuario: "${user.username}"`, user.id, user.name);
-        return { success: false, message: 'Contraseña incorrecta. Por favor, verifica tus datos.' };
+  // Auth Operations
+  const login = async (username: string, password?: string): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const res = await api.auth.login(username, password);
+      if (res.success && res.user) {
+        setCurrentUser(res.user);
+        await loadUserData(res.user);
+        return { success: true };
       }
-    }
-
-    setCurrentUserId(user.id);
-    localStorage.setItem(`${STORAGE_KEY}_current_user_id`, user.id);
-    sessionStorage.setItem(`${STORAGE_KEY}_session_active`, 'true');
-
-    const updatedUsers = users.map((u) =>
-      u.id === user.id ? { ...u, lastLogin: new Date().toISOString().replace('T', ' ').substring(0, 19) } : u
-    );
-    setUsers(updatedUsers);
-    addAuditLog('INICIO_SESION', `Sesión iniciada correctamente`, user.id, user.name);
-    return { success: true };
-  };
-
-  const logout = () => {
-    if (currentUser) {
-      addAuditLog('CIERRE_SESION', `Sesión cerrada`, currentUser.id, currentUser.name);
-    }
-    setCurrentUserId(null);
-    localStorage.removeItem(`${STORAGE_KEY}_current_user_id`);
-    sessionStorage.removeItem(`${STORAGE_KEY}_session_active`);
-  };
-
-  const switchUserQuick = (userId: string) => {
-    const user = users.find((u) => u.id === userId);
-    if (user) {
-      setCurrentUserId(userId);
-      localStorage.setItem(`${STORAGE_KEY}_current_user_id`, user.id);
-      sessionStorage.setItem(`${STORAGE_KEY}_session_active`, 'true');
-      addAuditLog('CAMBIO_USUARIO', `Cambio a usuario "${user.username}"`, user.id, user.name);
+      return { success: false, message: 'Usuario o contraseña no válidos.' };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Error al iniciar sesión en el servidor.' };
     }
   };
 
-  // Admin User Management
-  const createUser = (userData: {
+  const logout = async () => {
+    try {
+      await api.auth.logout();
+    } catch (err) {
+      console.warn('[AUTH] Error al cerrar sesión en el servidor:', err);
+    } finally {
+      setCurrentUser(null);
+      setAccounts([]);
+      setTransactions([]);
+      setCategories([]);
+      setFinanciaciones([]);
+      setBudgets([]);
+      setRecurrents([]);
+      setOneOffExpenses([]);
+      setAuditLogs([]);
+      setUsers([]);
+    }
+  };
+
+  // Safe stub for switchUserQuick: forbidden to bypass authentication
+  const switchUserQuick = (_userId: string) => {
+    console.warn('[SECURITY] switchUserQuick está desactivada para prevenir elevación de privilegios no autorizada. Utilice inicio de sesión.');
+  };
+
+  // Admin Operations
+  const createUser = async (userData: {
     username: string;
     name: string;
     email: string;
@@ -381,241 +279,186 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     role: 'admin' | 'user';
     status: 'activo' | 'inactivo';
     permissions?: Partial<UserPermissions>;
-  }) => {
-    const exists = users.some(
-      (u) => u.username.toLowerCase() === userData.username.trim().toLowerCase() || u.email.toLowerCase() === userData.email.trim().toLowerCase()
-    );
-    if (exists) {
-      return { success: false, message: 'Ya existe un usuario con ese nombre o correo.' };
+  }): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await api.users.create(userData);
+      if (res.success && res.user) {
+        setUsers((prev) => [...prev, res.user]);
+        // Refresh audit logs
+        api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+        return { success: true, message: res.message || 'Usuario creado correctamente.' };
+      }
+      return { success: false, message: 'Error al crear el usuario.' };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Error al crear el usuario en el servidor.' };
     }
-
-    const basePermissions = userData.role === 'admin' ? DEFAULT_PERMISSIONS_ADMIN : DEFAULT_PERMISSIONS_USER;
-    const permissions: UserPermissions = {
-      ...basePermissions,
-      ...(userData.permissions || {}),
-      can_access_admin: userData.role === 'admin',
-    };
-
-    const newUser: User = {
-      id: `user_${Date.now()}`,
-      username: userData.username.trim().toLowerCase(),
-      name: userData.name.trim(),
-      email: userData.email.trim().toLowerCase(),
-      password: userData.password?.trim() || 'usuario123',
-      role: userData.role,
-      status: userData.status,
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      permissions,
-    };
-
-    setUsers((prev) => [...prev, newUser]);
-    addAuditLog(
-      'CREAR_USUARIO',
-      `Creado nuevo usuario "${newUser.username}" (${newUser.role}) con estado ${newUser.status}`
-    );
-    return { success: true, message: `Usuario @${newUser.username} creado con éxito.` };
   };
 
-  const updateUserStatus = (userId: string, status: 'activo' | 'inactivo') => {
-    if (userId === currentUser?.id && status === 'inactivo') {
-      alert('No puedes desactivar tu propio usuario en la sesión actual.');
-      return;
+  const updateUserStatus = async (userId: string, status: 'activo' | 'inactivo') => {
+    try {
+      await api.users.update(userId, { status });
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status } : u)));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al actualizar estado del usuario.');
     }
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, status } : u))
-    );
-    const targetUser = users.find((u) => u.id === userId);
-    addAuditLog('CAMBIO_ESTADO_USUARIO', `Estado de @${targetUser?.username} cambiado a ${status}`);
   };
 
-  const updateUserRole = (userId: string, role: 'admin' | 'user') => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === userId
-          ? {
-              ...u,
-              role,
-              permissions: {
-                ...u.permissions,
-                can_access_admin: role === 'admin',
-              },
-            }
-          : u
-      )
-    );
-    const targetUser = users.find((u) => u.id === userId);
-    addAuditLog('CAMBIO_ROL_USUARIO', `Rol de @${targetUser?.username} cambiado a ${role}`);
-  };
-
-  const updateUserPermissions = (userId: string, permissions: UserPermissions) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, permissions } : u))
-    );
-    const targetUser = users.find((u) => u.id === userId);
-    addAuditLog('MODIFICACION_PERMISOS', `Actualizados permisos para @${targetUser?.username}`);
-  };
-
-  const resetUserPassword = (userId: string, newPassword?: string) => {
-    const targetUser = users.find((u) => u.id === userId);
-    const tempPass = newPassword?.trim() || `Intranet_${Math.floor(1000 + Math.random() * 9000)}!`;
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, password: tempPass } : u))
-    );
-    addAuditLog('RESETEO_PASSWORD', `Contraseña actualizada para @${targetUser?.username}`);
-    return tempPass;
-  };
-
-  const deleteUser = (userId: string) => {
-    if (userId === currentUser?.id) {
-      return { success: false, message: 'No puedes eliminar el usuario con el que estás conectado.' };
+  const updateUserRole = async (userId: string, role: 'admin' | 'user') => {
+    try {
+      await api.users.update(userId, { role });
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId
+            ? {
+                ...u,
+                role,
+                permissions: {
+                  ...u.permissions,
+                  can_access_admin: role === 'admin',
+                },
+              }
+            : u
+        )
+      );
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al actualizar rol del usuario.');
     }
-    const targetUser = users.find((u) => u.id === userId);
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
-    // Cascade delete user data
-    setAccounts((prev) => prev.filter((a) => a.userId !== userId));
-    setTransactions((prev) => prev.filter((t) => t.userId !== userId));
-    setFinanciaciones((prev) => prev.filter((f) => f.userId !== userId));
-    setBudgets((prev) => prev.filter((b) => b.userId !== userId));
-    setRecurrents((prev) => prev.filter((r) => r.userId !== userId));
-    setOneOffExpenses((prev) => prev.filter((o) => o.userId !== userId));
-    
-    addAuditLog('ELIMINAR_USUARIO', `Eliminado usuario @${targetUser?.username} y sus registros`);
-    return { success: true, message: `Usuario @${targetUser?.username} y sus datos han sido eliminados.` };
   };
 
-  // User-isolated data getters
-  const userAccounts = useMemo(() => {
-    if (!currentUser) return [];
-    return accounts.filter((a) => a.userId === currentUser.id);
-  }, [accounts, currentUser]);
+  const updateUserPermissions = async (userId: string, permissions: UserPermissions) => {
+    try {
+      await api.users.update(userId, { permissions });
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, permissions } : u))
+      );
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al actualizar permisos del usuario.');
+    }
+  };
 
-  const userTransactions = useMemo(() => {
-    if (!currentUser) return [];
-    return transactions.filter((t) => t.userId === currentUser.id);
-  }, [transactions, currentUser]);
+  const resetUserPassword = async (userId: string, newPassword?: string): Promise<string> => {
+    const finalPass = newPassword || `Pass_${Math.random().toString(36).substring(2, 6)}!`;
+    try {
+      await api.users.update(userId, { password: finalPass });
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+      return finalPass;
+    } catch (err: any) {
+      alert(err?.message || 'Error al restablecer contraseña.');
+      return finalPass;
+    }
+  };
 
-  const userCategories = useMemo(() => {
-    if (!currentUser) return INITIAL_CATEGORIES;
-    return categories.filter((c) => c.userId === 'system' || c.userId === currentUser.id);
-  }, [categories, currentUser]);
+  const deleteUser = async (userId: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await api.users.delete(userId);
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+      return { success: true, message: res.message || 'Usuario eliminado.' };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Error al eliminar usuario.' };
+    }
+  };
 
-  const userFinanciaciones = useMemo(() => {
-    if (!currentUser) return [];
-    return financiaciones.filter((f) => f.userId === currentUser.id);
-  }, [financiaciones, currentUser]);
+  // Financial Balances (Computed on user's active accounts and transactions)
+  const getAccountBalance = useCallback(
+    (accountId: string): number => {
+      const acc = accounts.find((a) => a.id === accountId);
+      if (!acc) return 0;
+      let balance = acc.saldoInicial;
 
-  const userBudgets = useMemo(() => {
-    if (!currentUser) return [];
-    return budgets.filter((b) => b.userId === currentUser.id);
-  }, [budgets, currentUser]);
-
-  const userRecurrents = useMemo(() => {
-    if (!currentUser) return [];
-    return recurrents.filter((r) => r.userId === currentUser.id);
-  }, [recurrents, currentUser]);
-
-  const userOneOffExpenses = useMemo(() => {
-    if (!currentUser) return [];
-    return oneOffExpenses.filter((o) => o.userId === currentUser.id);
-  }, [oneOffExpenses, currentUser]);
-
-  // Account balance calculation:
-  // "El saldo actual se calcula solo a partir de los movimientos."
-  const getAccountBalance = (accountId: string): number => {
-    const acc = accounts.find((a) => a.id === accountId);
-    if (!acc) return 0;
-    let balance = acc.saldoInicial;
-
-    const accTxs = transactions.filter(
-      (t) => t.cuentaId === accountId || t.cuentaDestinoId === accountId
-    );
-
-    for (const tx of accTxs) {
-      if (tx.tipo === 'ingreso' && tx.cuentaId === accountId) {
-        balance += tx.importe;
-      } else if (tx.tipo === 'gasto' && tx.cuentaId === accountId) {
-        balance -= tx.importe;
-      } else if (tx.tipo === 'transferencia') {
-        if (tx.cuentaId === accountId) {
-          balance -= tx.importe; // Saliente
-        }
-        if (tx.cuentaDestinoId === accountId) {
-          balance += tx.importe; // Entrante
+      for (const tx of transactions) {
+        if (tx.tipo === 'ingreso' && tx.cuentaId === accountId) {
+          balance += tx.importe;
+        } else if (tx.tipo === 'gasto' && tx.cuentaId === accountId) {
+          balance -= tx.importe;
+        } else if (tx.tipo === 'transferencia') {
+          if (tx.cuentaId === accountId) {
+            balance -= tx.importe;
+          }
+          if (tx.cuentaDestinoId === accountId) {
+            balance += tx.importe;
+          }
         }
       }
+      return balance;
+    },
+    [accounts, transactions]
+  );
+
+  const getTotalBalance = useCallback((): number => {
+    return accounts.reduce((acc, account) => acc + getAccountBalance(account.id), 0);
+  }, [accounts, getAccountBalance]);
+
+  // Account Operations
+  const createAccount = async (acc: Omit<Account, 'id' | 'userId' | 'createdAt'>) => {
+    try {
+      const created = await api.accounts.create(acc);
+      setAccounts((prev) => [...prev, created]);
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al crear la cuenta.');
     }
-    return Math.round(balance * 100) / 100;
   };
 
-  const getTotalBalance = (): number => {
-    return userAccounts.reduce((total, acc) => total + getAccountBalance(acc.id), 0);
-  };
-
-  // Account operations
-  const createAccount = (acc: Omit<Account, 'id' | 'userId' | 'createdAt'>) => {
-    if (!currentUser) return;
-    const newAcc: Account = {
-      ...acc,
-      id: `acc_${Date.now()}`,
-      userId: currentUser.id,
-      createdAt: new Date().toISOString().substring(0, 10),
-    };
-    setAccounts((prev) => [...prev, newAcc]);
-    addAuditLog('CREAR_CUENTA', `Creada cuenta "${newAcc.nombre}" (${newAcc.entidad})`);
-  };
-
-  const updateAccount = (id: string, partial: Partial<Account>) => {
-    setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...partial } : a)));
-  };
-
-  const deleteAccount = (id: string) => {
-    const acc = accounts.find((a) => a.id === id);
-    setAccounts((prev) => prev.filter((a) => a.id !== id));
-    addAuditLog('ELIMINAR_CUENTA', `Eliminada cuenta "${acc?.nombre}"`);
-  };
-
-  // Transaction operations
-  const createTransaction = (tx: Omit<Transaction, 'id' | 'userId' | 'createdAt'>) => {
-    if (!currentUser) return;
-    const newTx: Transaction = {
-      ...tx,
-      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      userId: currentUser.id,
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-    addAuditLog('NUEVA_TRANSACCION', `${tx.tipo.toUpperCase()} de ${tx.importe.toFixed(2)} €: "${tx.descripcion}"`);
-  };
-
-  const updateTransaction = (id: string, txPartial: Partial<Transaction>) => {
-    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...txPartial } : t)));
-  };
-
-  const deleteTransaction = (id: string) => {
-    const tx = transactions.find((t) => t.id === id);
-    if (!tx) return;
-
-    // If it was linked to a quota, update that quota to pagada: false
-    if (tx.origenCuotaId) {
-      setFinanciaciones((prev) =>
-        prev.map((f) => ({
-          ...f,
-          cuotas: f.cuotas.map((c) =>
-            c.id === tx.origenCuotaId
-              ? { ...c, pagada: false, fechaPago: undefined, transaccionId: undefined }
-              : c
-          ),
-        }))
-      );
+  const updateAccount = async (id: string, partial: Partial<Account>) => {
+    try {
+      await api.accounts.update(id, partial);
+      setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...partial } : a)));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al actualizar la cuenta.');
     }
-
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
-    addAuditLog('ELIMINAR_TRANSACCION', `Eliminada transacción "${tx.descripcion}" (${tx.importe.toFixed(2)} €)`);
   };
 
-  // Financing & Quotas operations
-  // "Al marcar una cuota como pagada se crea un gasto automáticamente; al desmarcarla se borra."
-  const createFinanciacion = (data: {
+  const deleteAccount = async (id: string) => {
+    try {
+      await api.accounts.delete(id);
+      setAccounts((prev) => prev.filter((a) => a.id !== id));
+      setTransactions((prev) => prev.filter((t) => t.cuentaId !== id && t.cuentaDestinoId !== id));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al eliminar la cuenta.');
+    }
+  };
+
+  // Transaction Operations
+  const createTransaction = async (tx: Omit<Transaction, 'id' | 'userId' | 'createdAt'>) => {
+    try {
+      const created = await api.transactions.create(tx);
+      setTransactions((prev) => [created, ...prev]);
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al crear la transacción.');
+    }
+  };
+
+  const updateTransaction = async (id: string, tx: Partial<Transaction>) => {
+    try {
+      await api.transactions.update(id, tx);
+      setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...tx } : t)));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al actualizar la transacción.');
+    }
+  };
+
+  const deleteTransaction = async (id: string) => {
+    try {
+      await api.transactions.delete(id);
+      setTransactions((prev) => prev.filter((t) => t.id !== id));
+      // Refresh financings if a quota transaction was removed
+      api.financiaciones.getAll().then(setFinanciaciones).catch(() => {});
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al eliminar la transacción.');
+    }
+  };
+
+  // Financing Operations
+  const createFinanciacion = async (fin: {
     nombre: string;
     entidad: string;
     precioTotal: number;
@@ -628,326 +471,213 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     categoriaId: string;
     notas?: string;
   }) => {
-    if (!currentUser) return;
-    const finId = `fin_${Date.now()}`;
-    const cuotas = generateCuotasList(
-      finId,
-      data.numeroCuotas,
-      data.cuotaMensual,
-      data.fechaInicio,
-      data.diaPago,
-      0 // 0 cuotas pagadas al inicio
-    );
-
-    const newFin: Financiacion = {
-      ...data,
-      id: finId,
-      userId: currentUser.id,
-      createdAt: new Date().toISOString().substring(0, 10),
-      cuotas,
-    };
-
-    setFinanciaciones((prev) => [newFin, ...prev]);
-
-    // Si tiene entrada mayor que 0, crear opcionalmente el gasto de entrada
-    if (data.entrada > 0) {
-      const entradaTx: Transaction = {
-        id: `tx_entrada_${finId}`,
-        userId: currentUser.id,
-        fecha: data.fechaInicio,
-        importe: data.entrada,
-        tipo: 'gasto',
-        descripcion: `Entrada inicial - ${data.nombre}`,
-        categoriaId: data.categoriaId,
-        cuentaId: data.cuentaId,
-        metodoPago: 'transferencia',
-        financiacionId: finId,
-        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      };
-      setTransactions((prev) => [entradaTx, ...prev]);
-    }
-
-    addAuditLog('NUEVA_FINANCIACION', `Registrada financiación "${data.nombre}" (${data.numeroCuotas} cuotas de ${data.cuotaMensual.toFixed(2)} €)`);
-  };
-
-  const toggleCuotaPagada = (cuotaId: string, customFechaPago?: string) => {
-    if (!currentUser) return;
-
-    let targetFin: Financiacion | undefined;
-    let targetCuota: Cuota | undefined;
-
-    for (const f of financiaciones) {
-      const c = f.cuotas.find((q) => q.id === cuotaId);
-      if (c) {
-        targetFin = f;
-        targetCuota = c;
-        break;
+    try {
+      const created = await api.financiaciones.create(fin);
+      setFinanciaciones((prev) => [created, ...prev]);
+      if (fin.entrada > 0) {
+        api.transactions.getAll().then(setTransactions).catch(() => {});
       }
-    }
-
-    if (!targetFin || !targetCuota) return;
-
-    const willBePaid = !targetCuota.pagada;
-    const hoy = customFechaPago || new Date().toISOString().substring(0, 10);
-
-    if (willBePaid) {
-      // Create associated expense transaction
-      const newTxId = `tx_cuota_${cuotaId}_${Date.now()}`;
-      const cuotaTx: Transaction = {
-        id: newTxId,
-        userId: currentUser.id,
-        fecha: hoy,
-        importe: targetCuota.importe,
-        tipo: 'gasto',
-        descripcion: `Cuota ${targetCuota.numeroCuota}/${targetFin.numeroCuotas} - ${targetFin.nombre}`,
-        categoriaId: targetFin.categoriaId,
-        cuentaId: targetFin.cuentaId,
-        metodoPago: 'domiciliacion',
-        origenCuotaId: cuotaId,
-        financiacionId: targetFin.id,
-        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      };
-
-      setTransactions((prev) => [cuotaTx, ...prev]);
-
-      setFinanciaciones((prev) =>
-        prev.map((f) =>
-          f.id === targetFin!.id
-            ? {
-                ...f,
-                cuotas: f.cuotas.map((c) =>
-                  c.id === cuotaId
-                    ? { ...c, pagada: true, fechaPago: hoy, transaccionId: newTxId }
-                    : c
-                ),
-              }
-            : f
-        )
-      );
-
-      addAuditLog(
-        'PAGO_CUOTA',
-        `Marcada como pagada cuota ${targetCuota.numeroCuota} de "${targetFin.nombre}" (${targetCuota.importe.toFixed(2)} €)`
-      );
-    } else {
-      // Unmark as paid: delete associated transaction
-      if (targetCuota.transaccionId) {
-        setTransactions((prev) => prev.filter((t) => t.id !== targetCuota!.transaccionId && t.origenCuotaId !== cuotaId));
-      } else {
-        setTransactions((prev) => prev.filter((t) => t.origenCuotaId !== cuotaId));
-      }
-
-      setFinanciaciones((prev) =>
-        prev.map((f) =>
-          f.id === targetFin!.id
-            ? {
-                ...f,
-                cuotas: f.cuotas.map((c) =>
-                  c.id === cuotaId
-                    ? { ...c, pagada: false, fechaPago: undefined, transaccionId: undefined }
-                    : c
-                ),
-              }
-            : f
-        )
-      );
-
-      addAuditLog(
-        'DESMARCAR_CUOTA',
-        `Desmarcada cuota ${targetCuota.numeroCuota} de "${targetFin.nombre}"`
-      );
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al crear la financiación.');
     }
   };
 
-  const deleteFinanciacion = (id: string) => {
-    const fin = financiaciones.find((f) => f.id === id);
-    // Remove all associated transactions
-    setTransactions((prev) => prev.filter((t) => t.financiacionId !== id));
-    setFinanciaciones((prev) => prev.filter((f) => f.id !== id));
-    addAuditLog('ELIMINAR_FINANCIACION', `Eliminada financiación "${fin?.nombre}" y sus cuotas asociadas`);
-  };
-
-  // Categories
-  const createCategory = (cat: { nombre: string; icono: string; color: string; tipo: 'gasto' | 'ingreso' }) => {
-    if (!currentUser) return;
-    const newCat: Category = {
-      ...cat,
-      id: `cat_${Date.now()}`,
-      userId: currentUser.id,
-    };
-    setCategories((prev) => [...prev, newCat]);
-    addAuditLog('CREAR_CATEGORIA', `Creada categoría "${newCat.nombre}" (${newCat.tipo})`);
-  };
-
-  const deleteCategory = (id: string) => {
-    const cat = categories.find((c) => c.id === id);
-    if (cat?.userId === 'system') {
-      alert('Las categorías base del sistema no pueden eliminarse.');
-      return;
+  const toggleCuotaPagada = async (cuotaId: string, customFechaPago?: string) => {
+    try {
+      await api.cuotas.toggle(cuotaId, { customFechaPago });
+      // Reload financings and transactions to ensure perfect consistency
+      const [updatedFins, updatedTxs] = await Promise.all([
+        api.financiaciones.getAll(),
+        api.transactions.getAll(),
+      ]);
+      setFinanciaciones(updatedFins);
+      setTransactions(updatedTxs);
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al cambiar estado de la cuota.');
     }
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-    addAuditLog('ELIMINAR_CATEGORIA', `Eliminada categoría personalizada "${cat?.nombre}"`);
   };
 
-  // Budgets
-  const saveBudget = (categoriaId: string, limiteMensual: number, periodo: string) => {
-    if (!currentUser) return;
-    setBudgets((prev) => {
-      const existingIndex = prev.findIndex(
-        (b) => b.userId === currentUser.id && b.categoriaId === categoriaId && b.periodo === periodo
+  const deleteFinanciacion = async (id: string) => {
+    try {
+      await api.financiaciones.delete(id);
+      setFinanciaciones((prev) => prev.filter((f) => f.id !== id));
+      setTransactions((prev) => prev.filter((t) => t.financiacionId !== id));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al eliminar la financiación.');
+    }
+  };
+
+  // Category Operations
+  const createCategory = async (cat: { nombre: string; icono: string; color: string; tipo: 'gasto' | 'ingreso' }) => {
+    try {
+      const created = await api.categories.create(cat);
+      setCategories((prev) => [...prev, created]);
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al crear la categoría.');
+    }
+  };
+
+  const deleteCategory = async (id: string) => {
+    try {
+      await api.categories.delete(id);
+      setCategories((prev) => prev.filter((c) => c.id !== id));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al eliminar la categoría.');
+    }
+  };
+
+  // Budgets Operations
+  const saveBudget = async (categoriaId: string, limiteMensual: number, periodo: string) => {
+    try {
+      const saved = await api.budgets.save({ categoriaId, limiteMensual, periodo });
+      setBudgets((prev) => {
+        const idx = prev.findIndex((b) => b.categoriaId === categoriaId);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = saved;
+          return updated;
+        }
+        return [...prev, saved];
+      });
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al guardar el presupuesto.');
+    }
+  };
+
+  const deleteBudget = async (id: string) => {
+    try {
+      await api.budgets.delete(id);
+      setBudgets((prev) => prev.filter((b) => b.id !== id));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al eliminar el presupuesto.');
+    }
+  };
+
+  // Recurrents Operations
+  const createRecurrent = async (rec: Omit<RecurrentMovement, 'id' | 'userId'>) => {
+    try {
+      const created = await api.recurrents.create(rec);
+      setRecurrents((prev) => [...prev, created]);
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al crear el movimiento recurrente.');
+    }
+  };
+
+  const updateRecurrent = async (id: string, partial: Partial<RecurrentMovement>) => {
+    try {
+      await api.recurrents.update(id, partial);
+      setRecurrents((prev) => prev.map((r) => (r.id === id ? { ...r, ...partial } : r)));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al actualizar el movimiento recurrente.');
+    }
+  };
+
+  const toggleRecurrent = async (id: string) => {
+    const item = recurrents.find((r) => r.id === id);
+    if (!item) return;
+    const newActivo = !item.activo;
+    try {
+      await api.recurrents.update(id, { activo: newActivo });
+      setRecurrents((prev) => prev.map((r) => (r.id === id ? { ...r, activo: newActivo } : r)));
+    } catch (err: any) {
+      alert(err?.message || 'Error al cambiar estado del movimiento recurrente.');
+    }
+  };
+
+  const deleteRecurrent = async (id: string) => {
+    try {
+      await api.recurrents.delete(id);
+      setRecurrents((prev) => prev.filter((r) => r.id !== id));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al eliminar el movimiento recurrente.');
+    }
+  };
+
+  const setRecurrentMonthOverride = async (recurrentId: string, periodo: string, override: MonthOverride) => {
+    const item = recurrents.find((r) => r.id === recurrentId);
+    if (!item) return;
+    const currentOverrides = item.overrides || {};
+    const newOverrides = { ...currentOverrides, [periodo]: override };
+    try {
+      await api.recurrents.update(recurrentId, { overrides: newOverrides });
+      setRecurrents((prev) =>
+        prev.map((r) => (r.id === recurrentId ? { ...r, overrides: newOverrides } : r))
       );
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = { ...updated[existingIndex], limiteMensual };
-        return updated;
-      }
-      return [
-        ...prev,
-        {
-          id: `b_${Date.now()}`,
-          userId: currentUser.id,
-          categoriaId,
-          limiteMensual,
-          periodo,
-        },
-      ];
-    });
+    } catch (err: any) {
+      alert(err?.message || 'Error al registrar modificación del mes.');
+    }
   };
 
-  const deleteBudget = (id: string) => {
-    setBudgets((prev) => prev.filter((b) => b.id !== id));
-  };
-
-  // Recurrents
-  const createRecurrent = (rec: Omit<RecurrentMovement, 'id' | 'userId'>) => {
-    if (!currentUser) return;
-    const newRec: RecurrentMovement = {
-      ...rec,
-      id: `rec_${Date.now()}`,
-      userId: currentUser.id,
-    };
-    setRecurrents((prev) => [...prev, newRec]);
-    addAuditLog('CREAR_RECURRENTE', `Creado movimiento recurrente "${newRec.nombre}" (${newRec.importe.toFixed(2)} €)`);
-  };
-
-  const updateRecurrent = (id: string, partial: Partial<RecurrentMovement>) => {
-    setRecurrents((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...partial } : r))
-    );
-    const rec = recurrents.find((r) => r.id === id);
-    addAuditLog('EDITAR_RECURRENTE', `Actualizado movimiento recurrente "${rec?.nombre || id}"`);
-  };
-
-  const toggleRecurrent = (id: string) => {
-    setRecurrents((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, activo: !r.activo } : r))
-    );
-  };
-
-  const deleteRecurrent = (id: string) => {
-    const rec = recurrents.find((r) => r.id === id);
-    setRecurrents((prev) => prev.filter((r) => r.id !== id));
-    addAuditLog('ELIMINAR_RECURRENTE', `Eliminado movimiento recurrente "${rec?.nombre || id}"`);
-  };
-
-  const setRecurrentMonthOverride = (recurrentId: string, periodo: string, override: MonthOverride) => {
-    setRecurrents((prev) =>
-      prev.map((r) => {
-        if (r.id !== recurrentId) return r;
-        const currentOverrides = r.overrides || {};
-        return {
-          ...r,
-          overrides: {
-            ...currentOverrides,
-            [periodo]: {
-              ...(currentOverrides[periodo] || {}),
-              ...override,
-            },
-          },
-        };
-      })
-    );
-    const rec = recurrents.find((r) => r.id === recurrentId);
-    addAuditLog(
-      'AJUSTE_MENSUAL_GASTO',
-      `Ajuste manual para "${rec?.nombre}" en ${periodo}: ${override.omitido ? 'Omitido este mes' : `${override.importe?.toFixed(2)} €`}${override.motivo ? ` (${override.motivo})` : ''}`
-    );
-  };
-
-  const removeRecurrentMonthOverride = (recurrentId: string, periodo: string) => {
-    setRecurrents((prev) =>
-      prev.map((r) => {
-        if (r.id !== recurrentId || !r.overrides) return r;
-        const newOverrides = { ...r.overrides };
-        delete newOverrides[periodo];
-        return {
-          ...r,
-          overrides: Object.keys(newOverrides).length > 0 ? newOverrides : undefined,
-        };
-      })
-    );
-    const rec = recurrents.find((r) => r.id === recurrentId);
-    addAuditLog(
-      'RESTAURAR_AJUSTE_MENSUAL',
-      `Restaurado valor base para "${rec?.nombre}" en el mes ${periodo}`
-    );
+  const removeRecurrentMonthOverride = async (recurrentId: string, periodo: string) => {
+    const item = recurrents.find((r) => r.id === recurrentId);
+    if (!item || !item.overrides) return;
+    const newOverrides = { ...item.overrides };
+    delete newOverrides[periodo];
+    try {
+      await api.recurrents.update(recurrentId, { overrides: newOverrides });
+      setRecurrents((prev) =>
+        prev.map((r) => (r.id === recurrentId ? { ...r, overrides: newOverrides } : r))
+      );
+    } catch (err: any) {
+      alert(err?.message || 'Error al restablecer mes del movimiento recurrente.');
+    }
   };
 
   // Planned One-off Expenses
-  const createOneOffExpense = (expense: Omit<OneOffPlannedExpense, 'id' | 'userId' | 'createdAt'>) => {
-    if (!currentUser) return;
-    const newExpense: OneOffPlannedExpense = {
-      ...expense,
-      id: `one_off_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      userId: currentUser.id,
-      createdAt: new Date().toISOString().substring(0, 10),
-      pagado: false,
-    };
-    setOneOffExpenses((prev) => [...prev, newExpense]);
-    addAuditLog('NUEVO_GASTO_PUNTUAL', `Programado gasto puntual "${newExpense.nombre}" (${newExpense.importe.toFixed(2)} €) para ${newExpense.periodo}`);
+  const createOneOffExpense = async (expense: Omit<OneOffPlannedExpense, 'id' | 'userId' | 'createdAt'>) => {
+    try {
+      const created = await api.oneOffExpenses.create(expense);
+      setOneOffExpenses((prev) => [created, ...prev]);
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al registrar el gasto puntual planificado.');
+    }
   };
 
-  const updateOneOffExpense = (id: string, partial: Partial<OneOffPlannedExpense>) => {
-    setOneOffExpenses((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, ...partial } : o))
-    );
+  const updateOneOffExpense = async (id: string, partial: Partial<OneOffPlannedExpense>) => {
+    try {
+      await api.oneOffExpenses.update(id, partial);
+      setOneOffExpenses((prev) => prev.map((o) => (o.id === id ? { ...o, ...partial } : o)));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al actualizar el gasto planificado.');
+    }
   };
 
-  const deleteOneOffExpense = (id: string) => {
+  const deleteOneOffExpense = async (id: string) => {
+    try {
+      await api.oneOffExpenses.delete(id);
+      setOneOffExpenses((prev) => prev.filter((o) => o.id !== id));
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al eliminar el gasto planificado.');
+    }
+  };
+
+  const toggleOneOffExpensePagado = async (id: string) => {
     const item = oneOffExpenses.find((o) => o.id === id);
-    setOneOffExpenses((prev) => prev.filter((o) => o.id !== id));
-    addAuditLog('ELIMINAR_GASTO_PUNTUAL', `Eliminado gasto puntual "${item?.nombre || id}" de ${item?.periodo}`);
-  };
-
-  const toggleOneOffExpensePagado = (id: string) => {
-    setOneOffExpenses((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, pagado: !o.pagado } : o))
-    );
+    if (!item) return;
+    const newPagado = !item.pagado;
+    try {
+      await api.oneOffExpenses.update(id, { pagado: newPagado });
+      setOneOffExpenses((prev) => prev.map((o) => (o.id === id ? { ...o, pagado: newPagado } : o)));
+    } catch (err: any) {
+      alert(err?.message || 'Error al cambiar estado del gasto planificado.');
+    }
   };
 
   const resetToDefaultData = () => {
-    localStorage.removeItem(`${STORAGE_KEY}_users`);
-    localStorage.removeItem(`${STORAGE_KEY}_current_user_id`);
-    localStorage.removeItem(`${STORAGE_KEY}_accounts`);
-    localStorage.removeItem(`${STORAGE_KEY}_transactions`);
-    localStorage.removeItem(`${STORAGE_KEY}_categories`);
-    localStorage.removeItem(`${STORAGE_KEY}_financiaciones`);
-    localStorage.removeItem(`${STORAGE_KEY}_budgets`);
-    localStorage.removeItem(`${STORAGE_KEY}_recurrents`);
-    localStorage.removeItem(`${STORAGE_KEY}_one_off_expenses`);
-    localStorage.removeItem(`${STORAGE_KEY}_audit`);
-
-    setUsers(INITIAL_USERS);
-    setCurrentUserId('user_carlos_02');
-    setAccounts(INITIAL_ACCOUNTS);
-    setTransactions(INITIAL_TRANSACTIONS);
-    setCategories(INITIAL_CATEGORIES);
-    setFinanciaciones(INITIAL_FINANCIACIONES);
-    setBudgets(INITIAL_BUDGETS);
-    setRecurrents(INITIAL_RECURRENTS);
-    setOneOffExpenses(INITIAL_ONE_OFF_EXPENSES);
-    setAuditLogs(INITIAL_AUDIT_LOGS);
-    alert('Datos de la intranet restaurados al estado inicial.');
+    alert('En modo servidor MariaDB, las operaciones se gestionan a través de la base de datos centralizada.');
   };
 
   return (
@@ -955,14 +685,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       value={{
         currentUser,
         users,
-        accounts: userAccounts,
-        transactions: userTransactions,
-        categories: userCategories,
-        financiaciones: userFinanciaciones,
-        budgets: userBudgets,
-        recurrents: userRecurrents,
-        oneOffExpenses: userOneOffExpenses,
+        accounts,
+        transactions,
+        categories,
+        financiaciones,
+        budgets,
+        recurrents,
+        oneOffExpenses,
         auditLogs,
+        isLoading,
         login,
         logout,
         switchUserQuick,

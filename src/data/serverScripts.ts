@@ -238,6 +238,7 @@ DB_NAME="monex_db"
 DB_USER="monex_user"
 DB_PASS="Monex2026Secure."
 DB_HOST="localhost"
+SERVER_IP="192.168.1.12"
 
 echo -e "\${BLUE}[1/4] Verificando e instalando MariaDB Server...\${NC}"
 if ! command -v mariadb &> /dev/null && ! command -v mysql &> /dev/null; then
@@ -255,15 +256,39 @@ systemctl enable mariadb 2>/dev/null || systemctl enable mysql 2>/dev/null || tr
 echo -e "\${BLUE}[3/4] Creando base de datos '\${DB_NAME}' y usuario '\${DB_USER}'...\${NC}"
 mariadb -e "
 CREATE DATABASE IF NOT EXISTS \\\`\${DB_NAME}\\\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '\${DB_USER}'@'\${DB_HOST}' IDENTIFIED BY '\${DB_PASS}';
-ALTER USER '\${DB_USER}'@'\${DB_HOST}' IDENTIFIED BY '\${DB_PASS}';
-GRANT ALL PRIVILEGES ON \\\`\${DB_NAME}\\\`.* TO '\${DB_USER}'@'\${DB_HOST}';
+CREATE USER IF NOT EXISTS '\${DB_USER}'@'localhost' IDENTIFIED BY '\${DB_PASS}';
+ALTER USER '\${DB_USER}'@'localhost' IDENTIFIED BY '\${DB_PASS}';
+GRANT ALL PRIVILEGES ON \\\`\${DB_NAME}\\\`.* TO '\${DB_USER}'@'localhost';
+
+CREATE USER IF NOT EXISTS '\${DB_USER}'@'127.0.0.1' IDENTIFIED BY '\${DB_PASS}';
+ALTER USER '\${DB_USER}'@'127.0.0.1' IDENTIFIED BY '\${DB_PASS}';
+GRANT ALL PRIVILEGES ON \\\`\${DB_NAME}\\\`.* TO '\${DB_USER}'@'127.0.0.1';
+
+CREATE USER IF NOT EXISTS '\${DB_USER}'@'\${SERVER_IP}' IDENTIFIED BY '\${DB_PASS}';
+ALTER USER '\${DB_USER}'@'\${SERVER_IP}' IDENTIFIED BY '\${DB_PASS}';
+GRANT ALL PRIVILEGES ON \\\`\${DB_NAME}\\\`.* TO '\${DB_USER}'@'\${SERVER_IP}';
+
+CREATE USER IF NOT EXISTS '\${DB_USER}'@'%' IDENTIFIED BY '\${DB_PASS}';
+ALTER USER '\${DB_USER}'@'%' IDENTIFIED BY '\${DB_PASS}';
+GRANT ALL PRIVILEGES ON \\\`\${DB_NAME}\\\`.* TO '\${DB_USER}'@'%';
 FLUSH PRIVILEGES;
 " 2>/dev/null || mysql -e "
 CREATE DATABASE IF NOT EXISTS \\\`\${DB_NAME}\\\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '\${DB_USER}'@'\${DB_HOST}' IDENTIFIED BY '\${DB_PASS}';
-ALTER USER '\${DB_USER}'@'\${DB_HOST}' IDENTIFIED BY '\${DB_PASS}';
-GRANT ALL PRIVILEGES ON \\\`\${DB_NAME}\\\`.* TO '\${DB_USER}'@'\${DB_HOST}';
+CREATE USER IF NOT EXISTS '\${DB_USER}'@'localhost' IDENTIFIED BY '\${DB_PASS}';
+ALTER USER '\${DB_USER}'@'localhost' IDENTIFIED BY '\${DB_PASS}';
+GRANT ALL PRIVILEGES ON \\\`\${DB_NAME}\\\`.* TO '\${DB_USER}'@'localhost';
+
+CREATE USER IF NOT EXISTS '\${DB_USER}'@'127.0.0.1' IDENTIFIED BY '\${DB_PASS}';
+ALTER USER '\${DB_USER}'@'127.0.0.1' IDENTIFIED BY '\${DB_PASS}';
+GRANT ALL PRIVILEGES ON \\\`\${DB_NAME}\\\`.* TO '\${DB_USER}'@'127.0.0.1';
+
+CREATE USER IF NOT EXISTS '\${DB_USER}'@'\${SERVER_IP}' IDENTIFIED BY '\${DB_PASS}';
+ALTER USER '\${DB_USER}'@'\${SERVER_IP}' IDENTIFIED BY '\${DB_PASS}';
+GRANT ALL PRIVILEGES ON \\\`\${DB_NAME}\\\`.* TO '\${DB_USER}'@'\${SERVER_IP}';
+
+CREATE USER IF NOT EXISTS '\${DB_USER}'@'%' IDENTIFIED BY '\${DB_PASS}';
+ALTER USER '\${DB_USER}'@'%' IDENTIFIED BY '\${DB_PASS}';
+GRANT ALL PRIVILEGES ON \\\`\${DB_NAME}\\\`.* TO '\${DB_USER}'@'%';
 FLUSH PRIVILEGES;
 "
 
@@ -464,11 +489,14 @@ chmod 600 .env.monex
 echo -e "\\n\${GREEN}\${BOLD}=================================================================\${NC}"
 echo -e "\${GREEN}\${BOLD}   ¡BASE DE DATOS MONEX CREADA CON ÉXITO EN UBUNTU SERVER!       \${NC}"
 echo -e "\${GREEN}\${BOLD}=================================================================\${NC}"
+echo -e "IP del Servidor:\${CYAN}\${SERVER_IP}\${NC}"
 echo -e "Base de Datos:  \${CYAN}\${DB_NAME}\${NC}"
 echo -e "Usuario DB:     \${CYAN}\${DB_USER}\${NC}"
 echo -e "Contraseña DB:  \${CYAN}\${DB_PASS}\${NC}"
-echo -e "Host:           \${CYAN}\${DB_HOST}:3306\${NC}"
-echo -e "\\nUsuario Monex:"
+echo -e "Puerto DB:      \${CYAN}3306\${NC}"
+echo -e "\\nAcceso Web Monex (Nginx):"
+echo -e "URL de acceso:  \${YELLOW}http://\${SERVER_IP}\${NC}"
+echo -e "\\nUsuario inicial Monex:"
 echo -e "Usuario:        \${YELLOW}Administrador\${NC}"
 echo -e "Contraseña:     \${YELLOW}N1had2022.\${NC}"
 echo -e "\\nAcceso rápido por consola:"

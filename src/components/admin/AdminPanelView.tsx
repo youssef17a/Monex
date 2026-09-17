@@ -34,7 +34,7 @@ export const AdminPanelView: React.FC = () => {
     resetUserPassword,
     deleteUser,
     auditLogs,
-    switchUserQuick,
+    logout,
     theme,
   } = useFinance();
 
@@ -105,14 +105,14 @@ export const AdminPanelView: React.FC = () => {
     setIsCreateModalOpen(true);
   };
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !name.trim()) {
       alert('Rellena todos los campos obligatorios (Nombre y Usuario).');
       return;
     }
 
-    const res = createUser({
+    const res = await createUser({
       name: name.trim(),
       username: username.trim(),
       email: email.trim() || `${username.trim().toLowerCase()}@intranet.local`,
@@ -138,12 +138,12 @@ export const AdminPanelView: React.FC = () => {
     setCopiedPass(false);
   };
 
-  const handleConfirmResetPassword = (e: React.FormEvent) => {
+  const handleConfirmResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetModalUser) return;
 
     const finalPass = newPasswordValue.trim() || generateRandomKey('Pass');
-    resetUserPassword(resetModalUser.id, finalPass);
+    await resetUserPassword(resetModalUser.id, finalPass);
 
     const targetUsername = resetModalUser.username;
     setResetModalUser(null);
@@ -157,13 +157,13 @@ export const AdminPanelView: React.FC = () => {
     setTimeout(() => setCopiedPass(false), 2000);
   };
 
-  const handleTogglePerm = (key: keyof UserPermissions) => {
+  const handleTogglePerm = async (key: keyof UserPermissions) => {
     if (!editingPermissionsUser) return;
     const updated = {
       ...editingPermissionsUser.permissions,
       [key]: !editingPermissionsUser.permissions[key],
     };
-    updateUserPermissions(editingPermissionsUser.id, updated);
+    await updateUserPermissions(editingPermissionsUser.id, updated);
     setEditingPermissionsUser({
       ...editingPermissionsUser,
       permissions: updated,
@@ -192,11 +192,11 @@ export const AdminPanelView: React.FC = () => {
         </p>
         <div className="pt-2">
           <button
-            onClick={() => switchUserQuick('user_admin_01')}
-            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all inline-flex items-center gap-2"
+            onClick={() => logout()}
+            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
           >
             <ShieldCheck className="w-4 h-4" />
-            <span>Cambiar a Usuario Administrador</span>
+            <span>Cerrar sesión para identificarse como Administrador</span>
           </button>
         </div>
       </div>
