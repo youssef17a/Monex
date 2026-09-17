@@ -51,6 +51,10 @@ export const AdminPanelView: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showCreatePass, setShowCreatePass] = useState(false);
   const [createFeedback, setCreateFeedback] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [createSuccessModal, setCreateSuccessModal] = useState<{ username: string; pass: string; name: string } | null>(null);
+  const [copiedCreatePass, setCopiedCreatePass] = useState(false);
   const [userPerms, setUserPerms] = useState<UserPermissions>({
     can_create_accounts: true,
     can_manage_categories: true,
@@ -93,6 +97,7 @@ export const AdminPanelView: React.FC = () => {
     setPassword(generateRandomKey('User'));
     setShowCreatePass(true);
     setCreateFeedback(null);
+    setCreateError(null);
     setUserPerms({
       can_create_accounts: true,
       can_manage_categories: true,
@@ -107,27 +112,47 @@ export const AdminPanelView: React.FC = () => {
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !name.trim()) {
-      alert('Rellena todos los campos obligatorios (Nombre y Usuario).');
+    setCreateError(null);
+
+    const cleanUsername = username.trim();
+    const cleanName = name.trim();
+    if (!cleanUsername || !cleanName) {
+      setCreateError('Rellena todos los campos obligatorios (Nombre y Usuario).');
       return;
     }
 
-    const res = await createUser({
-      name: name.trim(),
-      username: username.trim(),
-      email: email.trim() || `${username.trim().toLowerCase()}@intranet.local`,
-      password: password.trim() || generateRandomKey('User'),
-      role,
-      status,
-      permissions: userPerms,
-    });
+    const finalPass = password.trim() || generateRandomKey('User');
+    const finalEmail = email.trim() || `${cleanUsername.toLowerCase()}@intranet.local`;
 
-    if (!res.success) {
-      alert(res.message);
-      return;
+    setIsCreatingUser(true);
+    try {
+      const res = await createUser({
+        name: cleanName,
+        username: cleanUsername,
+        email: finalEmail,
+        password: finalPass,
+        role,
+        status,
+        permissions: userPerms,
+      });
+
+      if (!res.success) {
+        setCreateError(res.message || 'Error al crear el usuario en el servidor.');
+        return;
+      }
+
+      setIsCreateModalOpen(false);
+      setCreateSuccessModal({
+        username: cleanUsername,
+        pass: finalPass,
+        name: cleanName,
+      });
+      setCopiedCreatePass(false);
+    } catch (err: any) {
+      setCreateError(err?.message || 'Error inesperado al conectar con el servidor.');
+    } finally {
+      setIsCreatingUser(false);
     }
-
-    setIsCreateModalOpen(false);
   };
 
   // Open reset password modal
@@ -973,14 +998,31 @@ export const AdminPanelView: React.FC = () => {
                 </div>
               </div>
 
+              {createError && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-2.5 text-xs text-rose-500">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div className="font-medium">{createError}</div>
+                </div>
+              )}
+
               <div className="pt-2">
                 <button
                   type="submit"
                   id="btn-submit-create-user"
-                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2"
+                  disabled={isCreatingUser}
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2"
                 >
-                  <Check className="w-4 h-4" />
-                  <span>Guardar y Crear Usuario</span>
+                  {isCreatingUser ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Creando usuario...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Guardar y Crear Usuario</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -1140,6 +1182,73 @@ export const AdminPanelView: React.FC = () => {
               className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-xs"
             >
               Entendido / Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirmación de Usuario Creado con Éxito */}
+      {createSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-6 text-center space-y-4 ${
+            theme === 'light'
+              ? 'bg-white border-slate-200 text-slate-900'
+              : 'bg-slate-900 border-slate-800 text-slate-100'
+          }`}>
+            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+              <CheckCircle className="w-6 h-6" />
+            </div>
+
+            <div>
+              <h3 className="font-bold text-base">¡Usuario Creado con Éxito!</h3>
+              <p className={`text-xs mt-1 ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                El usuario <strong className="font-semibold">{createSuccessModal.name}</strong> (<strong className="font-mono text-indigo-600">@{createSuccessModal.username}</strong>) ya puede iniciar sesión en Monex.
+              </p>
+            </div>
+
+            <div className="space-y-1.5 text-left">
+              <span className={`text-[11px] font-semibold uppercase tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                Contraseña Asignada:
+              </span>
+              <div className={`p-3 rounded-xl border font-mono text-sm font-bold tracking-wider flex items-center justify-between ${
+                theme === 'light'
+                  ? 'bg-slate-50 border-slate-300 text-indigo-700'
+                  : 'bg-slate-950 border-slate-800 text-indigo-400'
+              }`}>
+                <span className="select-all truncate">{createSuccessModal.pass}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(createSuccessModal.pass);
+                    setCopiedCreatePass(true);
+                    setTimeout(() => setCopiedCreatePass(false), 2000);
+                  }}
+                  className={`p-1.5 rounded-lg transition-colors ml-2 shrink-0 ${
+                    copiedCreatePass
+                      ? 'bg-emerald-500 text-white'
+                      : theme === 'light'
+                      ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                  }`}
+                  title="Copiar contraseña"
+                >
+                  {copiedCreatePass ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {copiedCreatePass && (
+              <p className="text-[11px] text-emerald-600 font-medium animate-fade-in">
+                ✓ Contraseña copiada al portapapeles
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setCreateSuccessModal(null)}
+              className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-xs"
+            >
+              Listo / Finalizar
             </button>
           </div>
         </div>

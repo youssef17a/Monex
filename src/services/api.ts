@@ -15,6 +15,27 @@ import {
 } from '../types';
 
 const API_BASE = '/api';
+const TOKEN_STORAGE_KEY = 'monex_auth_token';
+
+export function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthToken(token: string | null): void {
+  try {
+    if (token) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // ignore local storage errors
+  }
+}
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
@@ -24,7 +45,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set('Content-Type', 'application/json');
   }
 
-  // Ensure cookies (HTTP-only session) are sent and accepted
+  // Include Bearer token from localStorage for iframe/cross-origin resilience
+  const token = getAuthToken();
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  // Ensure cookies (HTTP-only session) are also sent and accepted
   options.credentials = 'include';
   options.headers = headers;
 
@@ -40,6 +67,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     } catch {
       // ignore
     }
+
+    // If session is expired or invalid on a protected endpoint, clear local token
+    if (response.status === 401 && endpoint !== '/auth/login') {
+      setAuthToken(null);
+    }
+
     throw new Error(errorMessage);
   }
 
@@ -54,15 +87,26 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 export const api = {
   // Auth
   auth: {
-    login: (username: string, password?: string) =>
-      request<{ success: boolean; user: User; token?: string }>('/auth/login', {
+    login: async (username: string, password?: string) => {
+      const res = await request<{ success: boolean; user: User; token?: string }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ username, password }),
-      }),
-    logout: () =>
-      request<{ success: boolean; message: string }>('/auth/logout', {
-        method: 'POST',
-      }),
+      });
+      if (res?.token) {
+        setAuthToken(res.token);
+      }
+      return res;
+    },
+    logout: async () => {
+      try {
+        const res = await request<{ success: boolean; message: string }>('/auth/logout', {
+          method: 'POST',
+        });
+        return res;
+      } finally {
+        setAuthToken(null);
+      }
+    },
     me: () =>
       request<{ success: boolean; user: User }>('/auth/me', {
         method: 'GET',

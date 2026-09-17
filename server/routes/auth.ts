@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import {
   AuthRequest,
   COOKIE_NAME,
@@ -96,10 +97,11 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
       role: userRow.role,
     });
 
+    const isHttps = Boolean(req.secure || req.headers['x-forwarded-proto'] === 'https');
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isHttps,
+      sameSite: isHttps ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
     });
 
@@ -141,16 +143,27 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
 });
 
 // POST /api/auth/logout
-router.post('/logout', requireAuth, async (req: AuthRequest, res: Response) => {
+router.post('/logout', async (req: AuthRequest, res: Response) => {
   try {
-    if (req.user) {
-      await logAudit(req, 'CIERRE_SESION', `Sesión cerrada`, req.user.id, req.user.name);
+    const token = req.cookies?.[COOKIE_NAME] || req.headers.authorization?.replace(/^Bearer\s+/i, '');
+    if (token) {
+      try {
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'monex_intranet_jwt_secure_secret_2026_production');
+        await logAudit(req, 'CIERRE_SESION', `Sesión cerrada`, decoded?.userId, decoded?.username);
+      } catch {
+        // ignore invalid token on logout
+      }
     }
-    res.clearCookie(COOKIE_NAME);
+    const isHttps = Boolean(req.secure || req.headers['x-forwarded-proto'] === 'https');
+    res.clearCookie(COOKIE_NAME, {
+      httpOnly: true,
+      secure: isHttps,
+      sameSite: isHttps ? 'none' : 'lax',
+    });
     return res.json({ success: true, message: 'Sesión cerrada correctamente.' });
   } catch (err: any) {
     console.error('[AUTH ROUTE] Error en /logout:', err);
-    return res.status(500).json({ error: 'Error interno en el servidor.' });
+    return res.json({ success: true, message: 'Sesión cerrada.' });
   }
 });
 
