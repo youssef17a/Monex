@@ -7,18 +7,26 @@ import { AccountsView } from './components/cuentas/AccountsView';
 import { TransactionsView } from './components/transacciones/TransactionsView';
 import { FinancingView } from './components/financiaciones/FinancingView';
 import { BudgetsView } from './components/presupuestos/BudgetsView';
+import { IncomesView } from './components/ingresos/IncomesView';
 import { CategoriesView } from './components/categorias/CategoriesView';
 import { AdminPanelView } from './components/admin/AdminPanelView';
 import { ServerDocsView } from './components/server/ServerDocsView';
 import { QuickTransactionModal } from './components/common/QuickTransactionModal';
 import { FloatingActionButton } from './components/common/FloatingActionButton';
 import { Lock, HardDrive, ArrowRight, Sun, Moon } from 'lucide-react';
+import { TransactionType } from './types';
 
 const MainLayout: React.FC = () => {
   const { currentUser, login, theme, toggleTheme, isLoading } = useFinance();
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isOpenMobile, setIsOpenMobile] = useState(false);
   const [isQuickTxOpen, setIsQuickTxOpen] = useState(false);
+  const [quickTxDefaultType, setQuickTxDefaultType] = useState<TransactionType>('gasto');
+
+  const openQuickTxWithType = (type: TransactionType = 'gasto') => {
+    setQuickTxDefaultType(type);
+    setIsQuickTxOpen(true);
+  };
 
   // Login form state (empty by default, no prefilled data)
   const [loginUsername, setLoginUsername] = useState('');
@@ -187,7 +195,7 @@ const MainLayout: React.FC = () => {
         {/* Top Navbar */}
         <Navbar
           onOpenMobileSidebar={() => setIsOpenMobile(true)}
-          onOpenQuickTx={() => setIsQuickTxOpen(true)}
+          onOpenQuickTx={() => openQuickTxWithType('gasto')}
           activeTabTitle={
             activeTab === 'dashboard'
               ? 'Dashboard General'
@@ -195,6 +203,8 @@ const MainLayout: React.FC = () => {
               ? 'Mis Cuentas Bancarias'
               : activeTab === 'transacciones'
               ? 'Historial de Transacciones'
+              : activeTab === 'ingresos'
+              ? 'Gestión de Ingresos Mensuales'
               : activeTab === 'financiaciones'
               ? 'Financiaciones y Cuotas'
               : activeTab === 'presupuestos'
@@ -213,15 +223,20 @@ const MainLayout: React.FC = () => {
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {activeTab === 'dashboard' && (
             <DashboardView
-              onOpenQuickTx={() => setIsQuickTxOpen(true)}
-              onNavigate={(tab) => setActiveTab(tab)}
+              onOpenQuickTx={() => openQuickTxWithType('gasto')}
+              onOpenQuickIncome={() => openQuickTxWithType('ingreso')}
+              onNavigate={(tab) => setActiveTab(tab as ActiveTab)}
             />
           )}
 
           {activeTab === 'cuentas' && <AccountsView />}
 
           {activeTab === 'transacciones' && (
-            <TransactionsView onOpenQuickTx={() => setIsQuickTxOpen(true)} />
+            <TransactionsView onOpenQuickTx={() => openQuickTxWithType('gasto')} />
+          )}
+
+          {activeTab === 'ingresos' && (
+            <IncomesView onOpenQuickIncome={() => openQuickTxWithType('ingreso')} />
           )}
 
           {activeTab === 'financiaciones' && <FinancingView />}
@@ -237,12 +252,13 @@ const MainLayout: React.FC = () => {
       </div>
 
       {/* Floating Action Button for rapid transaction entry */}
-      <FloatingActionButton onClick={() => setIsQuickTxOpen(true)} />
+      <FloatingActionButton onClick={() => openQuickTxWithType('gasto')} />
 
       {/* Quick Transaction Modal */}
       <QuickTransactionModal
         isOpen={isQuickTxOpen}
         onClose={() => setIsQuickTxOpen(false)}
+        defaultType={quickTxDefaultType}
       />
     </div>
   );

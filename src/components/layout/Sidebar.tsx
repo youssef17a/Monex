@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   WalletCards,
   ArrowLeftRight,
+  ArrowUpRight,
   ReceiptText,
   Calendar,
   Tag,
@@ -20,6 +21,7 @@ export type ActiveTab =
   | 'dashboard'
   | 'cuentas'
   | 'transacciones'
+  | 'ingresos'
   | 'financiaciones'
   | 'presupuestos'
   | 'categorias'
@@ -45,6 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
     { id: 'cuentas', label: 'Cuentas', icon: WalletCards, badge: null },
     { id: 'transacciones', label: 'Transacciones', icon: ArrowLeftRight, badge: null },
+    { id: 'ingresos', label: 'Ingresos mes', icon: ArrowUpRight, badge: null },
     { id: 'financiaciones', label: 'Financiaciones y Cuotas', icon: ReceiptText, badge: null },
     { id: 'presupuestos', label: 'Gastos mes', icon: Calendar, badge: null },
     { id: 'categorias', label: 'Categorías', icon: Tag, badge: null },

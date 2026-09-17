@@ -7,6 +7,7 @@ interface SeasonalExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
   recurrentToEdit?: RecurrentMovement | null;
+  defaultTipo?: 'gasto' | 'ingreso';
 }
 
 const MONTH_NAMES_SHORT = [
@@ -28,12 +29,13 @@ export const SeasonalExpenseModal: React.FC<SeasonalExpenseModalProps> = ({
   isOpen,
   onClose,
   recurrentToEdit,
+  defaultTipo = 'gasto',
 }) => {
-  const { categories, accounts, createRecurrent, updateRecurrent } = useFinance();
+  const { categories, accounts, createRecurrent, updateRecurrent, theme } = useFinance();
 
   const [nombre, setNombre] = useState('');
   const [importe, setImporte] = useState('');
-  const [tipo, setTipo] = useState<'gasto' | 'ingreso'>('gasto');
+  const [tipo, setTipo] = useState<'gasto' | 'ingreso'>(defaultTipo);
   const [categoriaId, setCategoriaId] = useState('');
   const [cuentaId, setCuentaId] = useState('');
   const [diaDelMes, setDiaDelMes] = useState('1');
@@ -57,8 +59,8 @@ export const SeasonalExpenseModal: React.FC<SeasonalExpenseModalProps> = ({
     } else {
       setNombre('');
       setImporte('');
-      setTipo('gasto');
-      setCategoriaId(categories.find((c) => c.tipo === 'gasto')?.id || categories[0]?.id || '');
+      setTipo(defaultTipo);
+      setCategoriaId(categories.find((c) => c.tipo === defaultTipo)?.id || categories[0]?.id || '');
       setCuentaId(accounts[0]?.id || '');
       setDiaDelMes('1');
       setFrecuencia('mensual');
@@ -66,7 +68,7 @@ export const SeasonalExpenseModal: React.FC<SeasonalExpenseModalProps> = ({
       setMesesActivos([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
       setNotas('');
     }
-  }, [recurrentToEdit, isOpen, categories, accounts]);
+  }, [recurrentToEdit, isOpen, categories, accounts, defaultTipo]);
 
   if (!isOpen) return null;
 
@@ -176,7 +178,12 @@ export const SeasonalExpenseModal: React.FC<SeasonalExpenseModalProps> = ({
               <label className="block text-xs font-semibold text-slate-300 mb-1">Tipo</label>
               <select
                 value={tipo}
-                onChange={(e) => setTipo(e.target.value as any)}
+                onChange={(e) => {
+                  const newTipo = e.target.value as 'gasto' | 'ingreso';
+                  setTipo(newTipo);
+                  const firstCat = categories.find((c) => c.tipo === newTipo);
+                  if (firstCat) setCategoriaId(firstCat.id);
+                }}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-emerald-500 transition-colors"
               >
                 <option value="gasto">Gasto Periódico</option>
@@ -220,7 +227,7 @@ export const SeasonalExpenseModal: React.FC<SeasonalExpenseModalProps> = ({
                 onChange={(e) => setCategoriaId(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-emerald-500 transition-colors"
               >
-                {categories.map((c) => (
+                {categories.filter((c) => c.tipo === tipo).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.nombre}
                   </option>
