@@ -66,7 +66,11 @@ const MainLayout: React.FC = () => {
             type="button"
             id="btn-login-theme-toggle"
             onClick={toggleTheme}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-medium text-slate-300 hover:text-white transition-colors shadow-sm"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors shadow-xs ${
+              theme === 'light'
+                ? 'bg-white/90 border-slate-200 text-slate-700 hover:text-slate-900'
+                : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:text-white'
+            }`}
             title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
           >
             {theme === 'dark' ? (
@@ -76,33 +80,43 @@ const MainLayout: React.FC = () => {
               </>
             ) : (
               <>
-                <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                <Moon className="w-3.5 h-3.5 text-indigo-600" />
                 <span className="hidden sm:inline">Tema Oscuro</span>
               </>
             )}
           </button>
         </div>
 
-        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl relative z-10">
+        <div className={`w-full max-w-md border rounded-3xl p-8 relative z-10 transition-colors ${
+          theme === 'light'
+            ? 'bg-white border-slate-200 shadow-xl text-slate-900'
+            : 'bg-slate-900 border-slate-800 shadow-2xl text-slate-100'
+        }`}>
           <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-950/50">
-              <HardDrive className="w-7 h-7 text-slate-950" />
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-950/20">
+              <HardDrive className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-2xl font-black text-slate-100 tracking-tight">Monex</h1>
-            <p className="text-xs text-slate-400 mt-1">
+            <h1 className={`text-2xl font-black tracking-tight ${
+              theme === 'light' ? 'text-slate-900' : 'text-slate-100'
+            }`}>Monex</h1>
+            <p className={`text-xs mt-1 ${
+              theme === 'light' ? 'text-slate-500' : 'text-slate-400'
+            }`}>
               Gestión Financiera Personal
             </p>
           </div>
 
           {loginError && (
-            <div className="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
+            <div className="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-500 text-xs font-medium">
               {loginError}
             </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              <label className={`block text-xs font-semibold mb-1.5 ${
+                theme === 'light' ? 'text-slate-700' : 'text-slate-300'
+              }`}>
                 Usuario
               </label>
               <div className="relative">
@@ -112,13 +126,19 @@ const MainLayout: React.FC = () => {
                   placeholder="Usuario"
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500 transition-colors"
+                  className={`w-full border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald-500 transition-colors ${
+                    theme === 'light'
+                      ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      : 'bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-500'
+                  }`}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              <label className={`block text-xs font-semibold mb-1.5 ${
+                theme === 'light' ? 'text-slate-700' : 'text-slate-300'
+              }`}>
                 Contraseña
               </label>
               <div className="relative">
@@ -128,7 +148,11 @@ const MainLayout: React.FC = () => {
                   placeholder="••••••••"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500 transition-colors"
+                  className={`w-full border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald-500 transition-colors ${
+                    theme === 'light'
+                      ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      : 'bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-500'
+                  }`}
                 />
               </div>
             </div>
@@ -137,7 +161,7 @@ const MainLayout: React.FC = () => {
               type="submit"
               id="btn-login-submit"
               disabled={isSubmitting}
-              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-sm shadow-lg shadow-emerald-950/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-sm shadow-lg shadow-emerald-950/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
             >
               <span>{isSubmitting ? 'Verificando...' : 'Acceder al Sistema'}</span>
               <ArrowRight className="w-4 h-4" />

@@ -10,107 +10,106 @@ body {
   font-feature-settings: "tnum" 1;
 }
 
-/* Light Theme Variables and Overrides */
+/* =========================================================================
+   LIGHT THEME COMPLETE SYSTEM
+   Eliminates all dark lingering backgrounds and ensures high contrast text
+   ========================================================================= */
+
 html.light,
 body.light,
 .light {
   color-scheme: light;
-}
-
-/* Base Light Mode Colors */
-.light {
   background-color: #f8fafc !important;
   color: #0f172a !important;
 }
 
-.light .bg-slate-950 {
+/* Base Page Background in Light Mode */
+.light main,
+.light #root,
+.light .min-h-screen {
   background-color: #f8fafc !important;
+  color: #0f172a !important;
 }
 
-.light .bg-slate-950\/80,
-.light .bg-slate-950\/70,
-.light .bg-slate-950\/60,
-.light .bg-slate-950\/50,
-.light .bg-slate-950\/40 {
-  background-color: #f1f5f9 !important;
-}
-
+/* Main Cards, Containers, and Panels */
 .light .bg-slate-900,
-.light .bg-slate-900\/95,
-.light .bg-slate-900\/90,
-.light .bg-slate-900\/80 {
+.light [class*="bg-slate-900"] {
   background-color: #ffffff !important;
   box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
 }
 
-.light .border-slate-800,
-.light .border-slate-800\/80,
-.light .border-slate-800\/70,
-.light .border-slate-800\/60 {
-  border-color: #e2e8f0 !important;
+/* Sub-panels, card insets, and subtle backgrounds */
+.light .bg-slate-950,
+.light [class*="bg-slate-950"] {
+  background-color: #f8fafc !important;
 }
 
-/* Light mode sidebar and navigation */
-.light aside#main-sidebar {
-  background-color: #ffffff !important;
-  border-color: #e2e8f0 !important;
+/* Specific modal backdrop overlay */
+.light .fixed.inset-0[class*="bg-slate-950"] {
+  background-color: rgba(15, 23, 42, 0.45) !important;
 }
 
-.light #main-sidebar .text-slate-400 {
-  color: #64748b !important;
-}
-
-.light #main-sidebar button:hover {
+/* Secondary controls, tabs, pills, and header bars (slate-800) */
+.light .bg-slate-800,
+.light [class*="bg-slate-800"],
+.light .bg-slate-700,
+.light [class*="bg-slate-700"] {
   background-color: #f1f5f9 !important;
-  color: #0f172a !important;
-}
-
-.light #main-sidebar button[class*="bg-emerald-500"] {
-  background-color: #ecfdf5 !important;
-  border-color: #a7f3d0 !important;
-  color: #047857 !important;
-}
-
-.light #main-sidebar button[class*="bg-teal-500"] {
-  background-color: #f0fdfa !important;
-  border-color: #99f6e4 !important;
-  color: #0f766e !important;
-}
-
-.light #main-sidebar .border-t,
-.light #main-sidebar .border-b {
   border-color: #e2e8f0 !important;
-}
-
-.light .hover\:bg-slate-800\/60:hover {
-  background-color: #f1f5f9 !important;
-}
-
-.light .hover\:text-slate-200:hover,
-.light .hover\:text-slate-100:hover {
-  color: #0f172a !important;
-}
-
-.light .text-slate-100 {
-  color: #0f172a !important;
-}
-
-.light .text-slate-200 {
   color: #1e293b !important;
 }
 
+/* Soft gradients */
+.light .from-slate-900,
+.light [class*="from-slate-900"],
+.light .to-slate-900,
+.light [class*="to-slate-900"],
+.light .from-slate-950,
+.light [class*="from-slate-950"],
+.light .to-slate-950,
+.light [class*="to-slate-950"] {
+  --tw-gradient-from: #ffffff var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: #f1f5f9 var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+/* All borders and dividers */
+.light .border-slate-800,
+.light [class*="border-slate-800"],
+.light .border-slate-700,
+.light [class*="border-slate-700"] {
+  border-color: #e2e8f0 !important;
+}
+
+.light .divide-slate-800,
+.light [class*="divide-slate-800"],
+.light .divide-slate-700,
+.light [class*="divide-slate-700"] {
+  border-color: #e2e8f0 !important;
+}
+
+/* Text Hierarchy in Light Mode */
+.light .text-slate-100 {
+  color: #0f172a !important; /* Bold primary black/slate-900 */
+}
+
+.light .text-slate-200 {
+  color: #1e293b !important; /* Secondary strong slate-800 */
+}
+
 .light .text-slate-300 {
-  color: #334155 !important;
+  color: #334155 !important; /* Medium readable slate-700 */
 }
 
 .light .text-slate-400 {
-  color: #64748b !important;
+  color: #64748b !important; /* Accessible muted text slate-500 */
 }
 
 .light .text-slate-500 {
   color: #94a3b8 !important;
 }
 
+/* Inputs, Selects, Textareas & Dropdown Options */
 .light input,
 .light select,
 .light textarea {
@@ -119,13 +118,81 @@ body.light,
   border-color: #cbd5e1 !important;
 }
 
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
 .light input:focus,
 .light select:focus,
 .light textarea:focus {
   border-color: #10b981 !important;
-  outline: none;
+  box-shadow: 0 0 0 1px #10b981 !important;
+  outline: none !important;
 }
 
+.light select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Interactive States and Hovers in Light Mode */
+.light [class*="hover:bg-slate-800"]:hover,
+.light [class*="hover:bg-slate-700"]:hover,
+.light [class*="hover:bg-slate-900"]:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.light [class*="hover:text-slate-200"]:hover,
+.light [class*="hover:text-slate-100"]:hover {
+  color: #0f172a !important;
+}
+
+/* Specialized Dark Accent Containers in Light Mode (Rose, Emerald, Amber, Indigo) */
+.light [class*="bg-rose-950"] {
+  background-color: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+}
+
+.light [class*="bg-emerald-950"] {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+}
+
+.light [class*="bg-amber-950"] {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
+}
+
+.light [class*="bg-indigo-950"] {
+  background-color: #eef2ff !important;
+  border-color: #c7d2fe !important;
+}
+
+/* Preserve terminal & code blocks legibility in ServerDocs */
+.light pre,
+.light pre code {
+  background-color: #090d16 !important;
+  color: #fcd34d !important;
+  border-color: #1e293b !important;
+}
+
+.light .terminal-code-block {
+  background-color: #090d16 !important;
+  color: #34d399 !important;
+  border-color: #1e293b !important;
+}
+
+/* Modals elevation in light mode */
+.light [id^="modal-"],
+.light .modal-card {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.15) !important;
+}
+
+/* Light Scrollbars */
 .light ::-webkit-scrollbar-track {
   background: #f1f5f9;
 }
@@ -136,7 +203,7 @@ body.light,
   background: #94a3b8;
 }
 
-/* Custom smooth dark scrollbar */
+/* Dark Mode default scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
