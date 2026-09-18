@@ -79,6 +79,20 @@ export interface Cuota {
   pagada: boolean;
   fechaPago?: string;
   transaccionId?: string; // ID de la transacción de gasto creada al pagar
+  amortizadaPorExtra?: boolean; // Si fue cancelada mediante amortización extraordinaria
+}
+
+export interface AportacionExtraordinaria {
+  id: string;
+  financiacionId: string;
+  importe: number;
+  fecha: string; // YYYY-MM-DD
+  cuentaId: string;
+  tipoReduccion: 'reducir_plazo' | 'reducir_cuota' | 'capital_directo';
+  cuotasAfectadas?: number;
+  notas?: string;
+  transaccionId?: string;
+  createdAt: string;
 }
 
 export interface Financiacion {
@@ -97,6 +111,7 @@ export interface Financiacion {
   notas?: string;
   createdAt: string;
   cuotas: Cuota[];
+  aportacionesExtra?: AportacionExtraordinaria[];
 }
 
 export interface Budget {
@@ -111,6 +126,8 @@ export interface MonthOverride {
   importe?: number;
   omitido?: boolean;
   motivo?: string;
+  pagado?: boolean;
+  fechaPago?: string;
 }
 
 export interface RecurrentMovement {

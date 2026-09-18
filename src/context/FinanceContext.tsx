@@ -77,6 +77,18 @@ interface FinanceContextType {
   }) => Promise<void>;
   toggleCuotaPagada: (cuotaId: string, customFechaPago?: string) => Promise<void>;
   deleteFinanciacion: (id: string) => Promise<void>;
+  createAportacionExtraordinaria: (
+    finId: string,
+    data: {
+      importe: number;
+      fecha?: string;
+      cuentaId?: string;
+      tipoReduccion?: 'reducir_plazo' | 'reducir_cuota' | 'capital_directo';
+      notas?: string;
+      crearGasto?: boolean;
+    }
+  ) => Promise<boolean>;
+  deleteAportacionExtraordinaria: (finId: string, aportacionId: string) => Promise<void>;
   
   // Categories
   createCategory: (cat: { nombre: string; icono: string; color: string; tipo: 'gasto' | 'ingreso' }) => Promise<void>;
@@ -91,6 +103,20 @@ interface FinanceContextType {
   deleteRecurrent: (id: string) => Promise<void>;
   setRecurrentMonthOverride: (recurrentId: string, periodo: string, override: MonthOverride) => Promise<void>;
   removeRecurrentMonthOverride: (recurrentId: string, periodo: string) => Promise<void>;
+  toggleRecurrentPagado: (recurrentId: string, periodo: string) => Promise<void>;
+  setMonthlyExpenseAmount: (
+    itemType: 'recurrente' | 'cuota' | 'puntual',
+    itemId: string,
+    periodo: string,
+    newAmount: number,
+    motivo?: string
+  ) => Promise<void>;
+  deleteOrOmitMonthlyExpense: (
+    itemType: 'recurrente' | 'cuota' | 'puntual',
+    itemId: string,
+    periodo: string,
+    mode?: 'omitir_mes' | 'eliminar_definitivo'
+  ) => Promise<void>;
   
   // Planned One-off Expenses
   createOneOffExpense: (expense: Omit<OneOffPlannedExpense, 'id' | 'userId' | 'createdAt'>) => Promise<void>;
@@ -510,6 +536,51 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  const createAportacionExtraordinaria = async (
+    finId: string,
+    data: {
+      importe: number;
+      fecha?: string;
+      cuentaId?: string;
+      tipoReduccion?: 'reducir_plazo' | 'reducir_cuota' | 'capital_directo';
+      notas?: string;
+      crearGasto?: boolean;
+    }
+  ): Promise<boolean> => {
+    try {
+      const res = await api.financiaciones.createAportacion(finId, data);
+      if (res && res.success) {
+        const [updatedFins, updatedTxs] = await Promise.all([
+          api.financiaciones.getAll(),
+          api.transactions.getAll(),
+        ]);
+        setFinanciaciones(updatedFins);
+        setTransactions(updatedTxs);
+        api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      alert(err?.message || 'Error al registrar la aportación extraordinaria.');
+      return false;
+    }
+  };
+
+  const deleteAportacionExtraordinaria = async (finId: string, aportacionId: string) => {
+    try {
+      await api.financiaciones.deleteAportacion(finId, aportacionId);
+      const [updatedFins, updatedTxs] = await Promise.all([
+        api.financiaciones.getAll(),
+        api.transactions.getAll(),
+      ]);
+      setFinanciaciones(updatedFins);
+      setTransactions(updatedTxs);
+      api.auditLogs.getAll().then(setAuditLogs).catch(() => {});
+    } catch (err: any) {
+      alert(err?.message || 'Error al eliminar la aportación extraordinaria.');
+    }
+  };
+
   // Category Operations
   const createCategory = async (cat: { nombre: string; icono: string; color: string; tipo: 'gasto' | 'ingreso' }) => {
     try {
@@ -633,6 +704,63 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  const toggleRecurrentPagado = async (recurrentId: string, periodo: string) => {
+    const item = recurrents.find((r) => r.id === recurrentId);
+    if (!item) return;
+    const currentOverride = item.overrides?.[periodo] || {};
+    const newPagado = !currentOverride.pagado;
+    const updatedOverride: MonthOverride = {
+      ...currentOverride,
+      pagado: newPagado,
+      fechaPago: newPagado ? new Date().toISOString().substring(0, 10) : undefined,
+    };
+    await setRecurrentMonthOverride(recurrentId, periodo, updatedOverride);
+  };
+
+  const setMonthlyExpenseAmount = async (
+    itemType: 'recurrente' | 'cuota' | 'puntual',
+    itemId: string,
+    periodo: string,
+    newAmount: number,
+    motivo?: string
+  ) => {
+    if (itemType === 'recurrente') {
+      const item = recurrents.find((r) => r.id === itemId);
+      const existing = item?.overrides?.[periodo] || {};
+      await setRecurrentMonthOverride(itemId, periodo, {
+        ...existing,
+        importe: newAmount,
+        omitido: false,
+        motivo: motivo || existing.motivo,
+      });
+    } else if (itemType === 'puntual') {
+      await updateOneOffExpense(itemId, { importe: newAmount });
+    }
+  };
+
+  const deleteOrOmitMonthlyExpense = async (
+    itemType: 'recurrente' | 'cuota' | 'puntual',
+    itemId: string,
+    periodo: string,
+    mode: 'omitir_mes' | 'eliminar_definitivo' = 'omitir_mes'
+  ) => {
+    if (itemType === 'puntual') {
+      await deleteOneOffExpense(itemId);
+    } else if (itemType === 'recurrente') {
+      if (mode === 'omitir_mes') {
+        const item = recurrents.find((r) => r.id === itemId);
+        const existing = item?.overrides?.[periodo] || {};
+        await setRecurrentMonthOverride(itemId, periodo, {
+          ...existing,
+          omitido: true,
+          motivo: 'Omitido manualmente para este mes',
+        });
+      } else {
+        await deleteRecurrent(itemId);
+      }
+    }
+  };
+
   // Planned One-off Expenses
   const createOneOffExpense = async (expense: Omit<OneOffPlannedExpense, 'id' | 'userId' | 'createdAt'>) => {
     try {
@@ -714,6 +842,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         createFinanciacion,
         toggleCuotaPagada,
         deleteFinanciacion,
+        createAportacionExtraordinaria,
+        deleteAportacionExtraordinaria,
         createCategory,
         deleteCategory,
         saveBudget,
@@ -724,6 +854,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deleteRecurrent,
         setRecurrentMonthOverride,
         removeRecurrentMonthOverride,
+        toggleRecurrentPagado,
+        setMonthlyExpenseAmount,
+        deleteOrOmitMonthlyExpense,
         createOneOffExpense,
         updateOneOffExpense,
         deleteOneOffExpense,

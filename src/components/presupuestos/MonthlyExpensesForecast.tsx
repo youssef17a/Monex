@@ -17,13 +17,17 @@ import {
   Info,
   Check,
   Ban,
-  Sun,
-  Snowflake,
-  GraduationCap,
+  Search,
+  Clock,
+  ArrowUpDown,
+  Layers,
+  ListFilter,
+  DollarSign,
+  AlertCircle,
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
-import { formatCurrency, getCategoryIcon } from '../../lib/formatters';
-import { MonthOverrideModal } from './MonthOverrideModal';
+import { formatCurrency, formatDate, getCategoryIcon } from '../../lib/formatters';
+import { EditMonthExpenseModal, ExpenseTargetToEdit } from './EditMonthExpenseModal';
 import { SeasonalExpenseModal } from './SeasonalExpenseModal';
 import { OneOffExpenseModal } from './OneOffExpenseModal';
 import { RecurrentMovement, OneOffPlannedExpense } from '../../types';
@@ -33,6 +37,29 @@ const MONTH_NAMES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
 
+export interface UnifiedExpenseRow {
+  id: string; // unique key in list
+  type: 'recurrente' | 'cuota' | 'puntual';
+  rawId: string;
+  nombre: string;
+  dia: number; // 1-31 for sorting
+  importeOriginal: number;
+  importeEfectivo: number;
+  pagado: boolean;
+  fechaPago?: string;
+  isOmitted: boolean;
+  isModifiedThisMonth: boolean;
+  motivo?: string;
+  categoriaId: string;
+  cuentaId?: string;
+  tagLabel: string;
+  subInfo?: string;
+  isSeasonal?: boolean;
+  isSeasonActive?: boolean;
+  amortizadaPorExtra?: boolean;
+  rawItem: any;
+}
+
 export const MonthlyExpensesForecast: React.FC = () => {
   const {
     recurrents,
@@ -40,9 +67,10 @@ export const MonthlyExpensesForecast: React.FC = () => {
     oneOffExpenses,
     categories,
     accounts,
-    getTotalBalance,
-    setRecurrentMonthOverride,
+    setMonthlyExpenseAmount,
+    deleteOrOmitMonthlyExpense,
     removeRecurrentMonthOverride,
+    toggleRecurrentPagado,
     toggleCuotaPagada,
     deleteOneOffExpense,
     toggleOneOffExpensePagado,
@@ -69,142 +97,231 @@ export const MonthlyExpensesForecast: React.FC = () => {
 
   // Selected period, defaults to current month
   const [selectedPeriod, setSelectedPeriod] = useState<string>(monthHorizon[0].key);
-  const [filterType, setFilterType] = useState<'todos' | 'recurrentes' | 'temporada' | 'cuotas' | 'puntuales'>('todos');
-  const [showInactiveSeasonal, setShowInactiveSeasonal] = useState<boolean>(true);
+
+  // Filters and layout
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendientes' | 'pagados'>('todos');
+  const [typeFilter, setTypeFilter] = useState<'todos' | 'recurrentes' | 'cuotas' | 'puntuales'>('todos');
+  const [viewMode, setViewMode] = useState<'apilado' | 'agrupado'>('apilado');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showInactiveSeasonal, setShowInactiveSeasonal] = useState<boolean>(false);
 
   // Modals state
-  const [overrideModalRec, setOverrideModalRec] = useState<RecurrentMovement | null>(null);
+  const [targetToEdit, setTargetToEdit] = useState<ExpenseTargetToEdit | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isSeasonalModalOpen, setIsSeasonalModalOpen] = useState(false);
   const [recurrentToEdit, setRecurrentToEdit] = useState<RecurrentMovement | null>(null);
   const [isOneOffModalOpen, setIsOneOffModalOpen] = useState(false);
   const [oneOffToEdit, setOneOffToEdit] = useState<OneOffPlannedExpense | null>(null);
 
+  // Quick prompt for recurrent deletion/omit
+  const [deletePromptItem, setDeletePromptItem] = useState<UnifiedExpenseRow | null>(null);
+
   const selectedMonthObj = monthHorizon.find((m) => m.key === selectedPeriod) || monthHorizon[0];
   const selectedMonthNum = selectedMonthObj.month;
 
-  // 1. Calculate Recurrent and Seasonal Expenses for this month
-  const recurrentCalculations = useMemo(() => {
-    return recurrents
-      .filter((r) => r.activo)
-      .map((r) => {
-        const isIncome = r.tipo === 'ingreso';
+  // 1. UNIFIED EXPENSE ITEMS FOR THIS MONTH
+  const unifiedExpenses = useMemo(() => {
+    const list: UnifiedExpenseRow[] = [];
+
+    // A. Recurrent & Seasonal Expenses (only expenses, not income)
+    recurrents
+      .filter((r) => r.activo && r.tipo === 'gasto')
+      .forEach((r) => {
         const isSeasonal = r.frecuencia === 'temporada';
-        
-        // Is it active in this specific month according to seasonal rules?
         const isSeasonActive = !isSeasonal || (r.mesesActivos && r.mesesActivos.includes(selectedMonthNum));
-        
-        // Month Override
         const override = r.overrides?.[selectedPeriod];
         const isOmitted = override?.omitido === true;
         const hasCustomAmount = override?.importe !== undefined && !isOmitted;
-        
-        let effectiveAmount = r.importe;
-        let appliesThisMonth = false;
+        const isPagado = override?.pagado === true;
 
-        if (isSeasonal && !isSeasonActive) {
-          // Outside of season
-          appliesThisMonth = false;
-          effectiveAmount = 0;
-        } else if (isOmitted) {
-          // User manually excluded it for this month
-          appliesThisMonth = false;
+        let effectiveAmount = r.importe;
+        if (isOmitted || (!isSeasonActive && isSeasonal)) {
           effectiveAmount = 0;
         } else if (hasCustomAmount) {
-          appliesThisMonth = true;
           effectiveAmount = override.importe!;
-        } else {
-          appliesThisMonth = true;
-          effectiveAmount = r.importe;
         }
 
-        return {
-          recurrent: r,
-          isIncome,
+        // If it is seasonal and not active, only add if user wants to see inactive
+        if (isSeasonal && !isSeasonActive && !showInactiveSeasonal) {
+          return;
+        }
+
+        list.push({
+          id: `rec-${r.id}`,
+          type: 'recurrente',
+          rawId: r.id,
+          nombre: r.nombre,
+          dia: r.diaDelMes || 1,
+          importeOriginal: r.importe,
+          importeEfectivo: effectiveAmount,
+          pagado: isPagado,
+          fechaPago: override?.fechaPago,
+          isOmitted,
+          isModifiedThisMonth: hasCustomAmount,
+          motivo: override?.motivo,
+          categoriaId: r.categoriaId,
+          cuentaId: r.cuentaId,
+          tagLabel: isSeasonal ? (r.temporadaNombre || 'Estacional') : 'Fijo mensual',
+          subInfo: isSeasonal ? 'Gasto estacional' : 'Gasto recurrente',
           isSeasonal,
           isSeasonActive,
-          override,
-          isOmitted,
-          hasCustomAmount,
-          appliesThisMonth,
-          effectiveAmount,
-        };
+          rawItem: r,
+        });
       });
-  }, [recurrents, selectedMonthNum, selectedPeriod]);
 
-  // 2. Scheduled Financing Installment Quotas for this month
-  const scheduledCuotas = useMemo(() => {
-    const list: Array<{
-      financiacionId: string;
-      financiacionNombre: string;
-      entidad: string;
-      cuotaId: string;
-      numeroCuota: number;
-      numeroCuotasTotal: number;
-      importe: number;
-      fechaVencimiento: string;
-      pagada: boolean;
-      fechaPago?: string;
-    }> = [];
-
+    // B. Quotas from active financings
     financiaciones.forEach((f) => {
       f.cuotas.forEach((c) => {
         if (c.fechaVencimiento.startsWith(selectedPeriod)) {
+          const dayNum = parseInt(c.fechaVencimiento.split('-')[2], 10) || 1;
           list.push({
-            financiacionId: f.id,
-            financiacionNombre: f.nombre,
-            entidad: f.entidad,
-            cuotaId: c.id,
-            numeroCuota: c.numeroCuota,
-            numeroCuotasTotal: f.numeroCuotas,
-            importe: c.importe,
-            fechaVencimiento: c.fechaVencimiento,
-            pagada: c.pagada,
+            id: `cuota-${c.id}`,
+            type: 'cuota',
+            rawId: c.id,
+            nombre: `${f.nombre} (Cuota ${c.numeroCuota}/${f.numeroCuotas})`,
+            dia: dayNum,
+            importeOriginal: c.importe,
+            importeEfectivo: c.importe,
+            pagado: c.pagada,
             fechaPago: c.fechaPago,
+            isOmitted: false,
+            isModifiedThisMonth: false,
+            categoriaId: f.categoriaId,
+            cuentaId: f.cuentaId,
+            tagLabel: `Cuota ${c.numeroCuota}/${f.numeroCuotas}`,
+            subInfo: `${f.entidad} • Vence día ${dayNum}`,
+            amortizadaPorExtra: c.amortizadaPorExtra,
+            rawItem: { ...c, financiacionId: f.id, financiacionNombre: f.nombre },
           });
         }
       });
     });
 
-    return list.sort((a, b) => a.fechaVencimiento.localeCompare(b.fechaVencimiento));
-  }, [financiaciones, selectedPeriod]);
+    // C. Planned One-off Expenses
+    oneOffExpenses
+      .filter((o) => o.periodo === selectedPeriod)
+      .forEach((o) => {
+        list.push({
+          id: `oneoff-${o.id}`,
+          type: 'puntual',
+          rawId: o.id,
+          nombre: o.nombre,
+          dia: o.diaEstimado || 15,
+          importeOriginal: o.importe,
+          importeEfectivo: o.importe,
+          pagado: !!o.pagado,
+          fechaPago: o.fechaPago,
+          isOmitted: false,
+          isModifiedThisMonth: false,
+          motivo: o.notas,
+          categoriaId: o.categoriaId,
+          cuentaId: o.cuentaId,
+          tagLabel: 'Gasto puntual',
+          subInfo: o.notas || 'Gasto extraordinario planificado',
+          rawItem: o,
+        });
+      });
 
-  // 3. Planned One-off Expenses for this month
-  const monthlyOneOffs = useMemo(() => {
-    return oneOffExpenses.filter((o) => o.periodo === selectedPeriod);
-  }, [oneOffExpenses, selectedPeriod]);
+    // Sort chronologically by day (1 to 31)
+    return list.sort((a, b) => a.dia - b.dia);
+  }, [recurrents, financiaciones, oneOffExpenses, selectedPeriod, selectedMonthNum, showInactiveSeasonal]);
 
-  // Totals for this selected month
-  const totalRecurrentExpenses = recurrentCalculations
-    .filter((rc) => !rc.isIncome && rc.appliesThisMonth)
-    .reduce((sum, rc) => sum + rc.effectiveAmount, 0);
+  // Recurrent Income for the month (to calculate net cash flow)
+  const totalRecurrentIncome = useMemo(() => {
+    return recurrents
+      .filter((r) => r.activo && r.tipo === 'ingreso')
+      .reduce((sum, r) => {
+        const isSeasonal = r.frecuencia === 'temporada';
+        const isSeasonActive = !isSeasonal || (r.mesesActivos && r.mesesActivos.includes(selectedMonthNum));
+        const override = r.overrides?.[selectedPeriod];
+        if (isSeasonal && !isSeasonActive) return sum;
+        if (override?.omitido) return sum;
+        if (override?.importe !== undefined) return sum + override.importe;
+        return sum + r.importe;
+      }, 0);
+  }, [recurrents, selectedMonthNum, selectedPeriod]);
 
-  const totalRecurrentIncome = recurrentCalculations
-    .filter((rc) => rc.isIncome && rc.appliesThisMonth)
-    .reduce((sum, rc) => sum + rc.effectiveAmount, 0);
+  // Calculations for active expenses this month
+  const activeExpensesList = useMemo(() => {
+    return unifiedExpenses.filter((item) => !item.isOmitted && !(item.isSeasonal && !item.isSeasonActive));
+  }, [unifiedExpenses]);
 
-  const totalCuotasAmount = scheduledCuotas.reduce((sum, c) => sum + c.importe, 0);
-  const totalOneOffAmount = monthlyOneOffs.reduce((sum, o) => sum + o.importe, 0);
+  const totalMonthlyExpenses = useMemo(() => {
+    return activeExpensesList.reduce((sum, item) => sum + item.importeEfectivo, 0);
+  }, [activeExpensesList]);
 
-  const totalMonthlyExpenses = totalRecurrentExpenses + totalCuotasAmount + totalOneOffAmount;
+  const totalPagado = useMemo(() => {
+    return activeExpensesList
+      .filter((item) => item.pagado)
+      .reduce((sum, item) => sum + item.importeEfectivo, 0);
+  }, [activeExpensesList]);
+
+  const totalPendiente = Math.max(0, totalMonthlyExpenses - totalPagado);
+  const countPagados = activeExpensesList.filter((item) => item.pagado).length;
+  const countPendientes = activeExpensesList.filter((item) => !item.pagado).length;
+  const progressPercent = totalMonthlyExpenses > 0 ? (totalPagado / totalMonthlyExpenses) * 100 : 0;
   const netEstimatedFlow = totalRecurrentIncome - totalMonthlyExpenses;
 
-  // Monthly Overview bars for all 12 months in the horizon
+  // Breakdown by type
+  const totalRecurrentsOnly = activeExpensesList
+    .filter((i) => i.type === 'recurrente')
+    .reduce((s, i) => s + i.importeEfectivo, 0);
+  const totalCuotasOnly = activeExpensesList
+    .filter((i) => i.type === 'cuota')
+    .reduce((s, i) => s + i.importeEfectivo, 0);
+  const totalPuntualesOnly = activeExpensesList
+    .filter((i) => i.type === 'puntual')
+    .reduce((s, i) => s + i.importeEfectivo, 0);
+
+  // Filtered expenses according to user controls
+  const displayedExpenses = useMemo(() => {
+    return unifiedExpenses.filter((item) => {
+      // Status filter
+      if (statusFilter === 'pendientes' && item.pagado) return false;
+      if (statusFilter === 'pagados' && !item.pagado) return false;
+
+      // Type filter
+      if (typeFilter === 'recurrentes' && item.type !== 'recurrente') return false;
+      if (typeFilter === 'cuotas' && item.type !== 'cuota') return false;
+      if (typeFilter === 'puntuales' && item.type !== 'puntual') return false;
+
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const account = accounts.find((a) => a.id === item.cuentaId);
+        const cat = categories.find((c) => c.id === item.categoriaId);
+        const matchesName = item.nombre.toLowerCase().includes(q);
+        const matchesAccount = account?.nombre.toLowerCase().includes(q);
+        const matchesCat = cat?.nombre.toLowerCase().includes(q);
+        const matchesTag = item.tagLabel.toLowerCase().includes(q);
+        if (!matchesName && !matchesAccount && !matchesCat && !matchesTag) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [unifiedExpenses, statusFilter, typeFilter, searchQuery, accounts, categories]);
+
+  // Horizon summary for comparative bar chart
   const horizonSummary = useMemo(() => {
     return monthHorizon.map((m) => {
-      // recurrent expenses for month m
-      const recExp = recurrents
+      let recExp = 0;
+      recurrents
         .filter((r) => r.activo && r.tipo === 'gasto')
-        .reduce((sum, r) => {
+        .forEach((r) => {
           const isSeasonal = r.frecuencia === 'temporada';
           const isSeasonActive = !isSeasonal || (r.mesesActivos && r.mesesActivos.includes(m.month));
           const override = r.overrides?.[m.key];
-          if (isSeasonal && !isSeasonActive) return sum;
-          if (override?.omitido) return sum;
-          if (override?.importe !== undefined) return sum + override.importe;
-          return sum + r.importe;
-        }, 0);
+          if (isSeasonal && !isSeasonActive) return;
+          if (override?.omitido) return;
+          if (override?.importe !== undefined) {
+            recExp += override.importe;
+          } else {
+            recExp += r.importe;
+          }
+        });
 
-      // cuotas
       let cuotasSum = 0;
       financiaciones.forEach((f) => {
         f.cuotas.forEach((c) => {
@@ -214,14 +331,11 @@ export const MonthlyExpensesForecast: React.FC = () => {
         });
       });
 
-      // one-offs
       const oneOffSum = oneOffExpenses
         .filter((o) => o.periodo === m.key)
         .reduce((sum, o) => sum + o.importe, 0);
 
       const totalExp = recExp + cuotasSum + oneOffSum;
-
-      // check if any manual overrides exist for this month
       const hasOverrides = recurrents.some((r) => r.overrides && r.overrides[m.key]);
 
       return {
@@ -229,9 +343,6 @@ export const MonthlyExpensesForecast: React.FC = () => {
         label: m.label,
         shortLabel: m.shortLabel,
         totalExp,
-        cuotasSum,
-        recExp,
-        oneOffSum,
         hasOverrides,
       };
     });
@@ -254,19 +365,89 @@ export const MonthlyExpensesForecast: React.FC = () => {
     }
   };
 
+  // 2. USER ACTION HANDLERS
+  const handleTogglePagado = async (item: UnifiedExpenseRow) => {
+    try {
+      if (item.type === 'recurrente') {
+        await toggleRecurrentPagado(item.rawId, selectedPeriod);
+      } else if (item.type === 'cuota') {
+        await toggleCuotaPagada(item.rawId);
+      } else if (item.type === 'puntual') {
+        await toggleOneOffExpensePagado(item.rawId);
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error al actualizar estado de pago.');
+    }
+  };
+
+  const handleOpenEditAmount = (item: UnifiedExpenseRow) => {
+    setTargetToEdit({
+      type: item.type,
+      id: item.rawId,
+      nombre: item.nombre,
+      importeOriginal: item.importeOriginal,
+      importeActual: item.importeEfectivo,
+      isOmitted: item.isOmitted,
+      motivo: item.motivo,
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEditedAmount = async (
+    type: 'recurrente' | 'cuota' | 'puntual',
+    id: string,
+    periodo: string,
+    newAmount: number,
+    motivo?: string,
+    isOmitted?: boolean
+  ) => {
+    if (isOmitted) {
+      await deleteOrOmitMonthlyExpense(type, id, periodo, 'omitir_mes');
+    } else {
+      await setMonthlyExpenseAmount(type, id, periodo, newAmount, motivo);
+    }
+  };
+
+  const handleRestoreAmount = async (
+    type: 'recurrente' | 'cuota' | 'puntual',
+    id: string,
+    periodo: string
+  ) => {
+    if (type === 'recurrente') {
+      await removeRecurrentMonthOverride(id, periodo);
+    }
+  };
+
+  const handleDeleteOrOmitClick = (item: UnifiedExpenseRow) => {
+    if (item.type === 'puntual') {
+      if (confirm(`¿Eliminar el gasto puntual "${item.nombre}" (${formatCurrency(item.importeEfectivo)})?`)) {
+        deleteOneOffExpense(item.rawId);
+      }
+    } else if (item.type === 'recurrente') {
+      setDeletePromptItem(item);
+    } else if (item.type === 'cuota') {
+      alert('Las cuotas de financiación pertenecen a un contrato a plazos. Para amortizar capital o aportar fuera de cuota, usa la pestaña de Financiaciones.');
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* 1. Month Selector Carousel / Bar */}
+    <div className="space-y-6 pb-12">
+      {/* 1. Month Selector Header Carousel */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-emerald-400" />
-            <h3 className="font-bold text-slate-100 text-sm">
-              Selecciona el mes a consultar o editar
-            </h3>
+            <Calendar className="w-5 h-5 text-amber-400" />
+            <div>
+              <h3 className="font-bold text-slate-100 text-sm">
+                Previsión y Control de Gastos Mensuales
+              </h3>
+              <p className="text-xs text-slate-400">
+                Mes seleccionado: <strong className="text-amber-300">{selectedMonthObj.label}</strong>
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 self-end sm:self-auto">
             <button
               onClick={handlePrevMonth}
               disabled={selectedPeriod === monthHorizon[0].key}
@@ -275,7 +456,7 @@ export const MonthlyExpensesForecast: React.FC = () => {
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-xs font-semibold text-slate-300 px-2 min-w-[120px] text-center">
+            <span className="text-xs font-semibold text-slate-200 px-3 min-w-[130px] text-center bg-slate-950/40 py-1.5 rounded-lg border border-slate-800/80 font-mono-num">
               {selectedMonthObj.label}
             </span>
             <button
@@ -290,7 +471,7 @@ export const MonthlyExpensesForecast: React.FC = () => {
         </div>
 
         {/* Scrollable Month Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
           {monthHorizon.map((m) => {
             const isSelected = m.key === selectedPeriod;
             const summary = horizonSummary.find((h) => h.key === m.key);
@@ -300,9 +481,9 @@ export const MonthlyExpensesForecast: React.FC = () => {
               <button
                 key={m.key}
                 onClick={() => setSelectedPeriod(m.key)}
-                className={`px-3.5 py-2 rounded-xl text-left border transition-all shrink-0 min-w-[110px] ${
+                className={`px-3 py-2 rounded-xl text-left border transition-all shrink-0 min-w-[105px] ${
                   isSelected
-                    ? 'bg-emerald-950/40 border-emerald-500/80 text-emerald-200 shadow-md ring-1 ring-emerald-500/40'
+                    ? 'bg-amber-500/15 border-amber-500/70 text-amber-200 shadow-md ring-1 ring-amber-500/30'
                     : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
                 }`}
               >
@@ -326,7 +507,7 @@ export const MonthlyExpensesForecast: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Key Metrics Cards for the Selected Month */}
+      {/* 2. Key High-Clarity KPIs Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card: Total Gastos Previstos */}
         <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-sm relative overflow-hidden">
@@ -340,18 +521,45 @@ export const MonthlyExpensesForecast: React.FC = () => {
           <div className="text-[11px] text-slate-400 mt-2 space-y-0.5">
             <div className="flex justify-between">
               <span>Recurrentes y temporada:</span>
-              <span className="font-mono-num text-slate-300">{formatCurrency(totalRecurrentExpenses)}</span>
+              <span className="font-mono-num text-slate-300">{formatCurrency(totalRecurrentsOnly)}</span>
             </div>
             <div className="flex justify-between">
               <span>Cuotas financiación:</span>
-              <span className="font-mono-num text-amber-300">{formatCurrency(totalCuotasAmount)}</span>
+              <span className="font-mono-num text-amber-300">{formatCurrency(totalCuotasOnly)}</span>
             </div>
-            {totalOneOffAmount > 0 && (
+            {totalPuntualesOnly > 0 && (
               <div className="flex justify-between">
                 <span>Gastos extraordinarios:</span>
-                <span className="font-mono-num text-indigo-300">{formatCurrency(totalOneOffAmount)}</span>
+                <span className="font-mono-num text-indigo-300">{formatCurrency(totalPuntualesOnly)}</span>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Card: Estado de Pago del Mes */}
+        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-sm">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span className="font-medium">Pagado vs Pendiente</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono-num text-emerald-400">
+            {formatCurrency(totalPagado)}
+          </div>
+          <div className="mt-2 space-y-1">
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span>Pendiente: <strong className="text-amber-300 font-mono-num">{formatCurrency(totalPendiente)}</strong></span>
+              <span className="font-semibold text-slate-300">{Math.round(progressPercent)}%</span>
+            </div>
+            {/* Visual Progress Bar */}
+            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-slate-400 block pt-0.5">
+              {countPagados} de {activeExpensesList.length} gastos liquidados
+            </span>
           </div>
         </div>
 
@@ -365,7 +573,7 @@ export const MonthlyExpensesForecast: React.FC = () => {
             {formatCurrency(totalRecurrentIncome)}
           </div>
           <p className="text-[11px] text-slate-400 mt-2">
-            Ingresos fijos programados activos para el mes de {selectedMonthObj.label}.
+            Ingresos fijos previstos para atender los pagos de {selectedMonthObj.label}.
           </p>
         </div>
 
@@ -388,457 +596,384 @@ export const MonthlyExpensesForecast: React.FC = () => {
           </div>
           <p className="text-[11px] text-slate-400 mt-2">
             {netEstimatedFlow >= 0
-              ? 'Capacidad de ahorro prevista tras atender todos los cargos.'
+              ? 'Margen de ahorro positivo tras liquidar todos los gastos previstos.'
               : 'Déficit previsto este mes: los gastos superan los ingresos fijos.'}
           </p>
         </div>
-
-        {/* Card: Cuotas a Plazos Activas */}
-        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span className="font-medium">Cuotas Financiación</span>
-            <ReceiptText className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-2xl font-bold font-mono-num text-amber-400">
-            {scheduledCuotas.length} {scheduledCuotas.length === 1 ? 'cuota' : 'cuotas'}
-          </div>
-          <p className="text-[11px] text-slate-400 mt-2">
-            Suman <strong className="text-slate-200">{formatCurrency(totalCuotasAmount)}</strong> en vencimientos durante este mes.
-          </p>
-        </div>
       </div>
 
-      {/* 3. Section Controls & Quick Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <span className="text-xs font-semibold text-slate-400 mr-1">Filtrar:</span>
-          {(['todos', 'recurrentes', 'temporada', 'cuotas', 'puntuales'] as const).map((t) => (
+      {/* 3. Stacked Expenses Control Toolbar */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+        {/* Top bar with Filters & Add Buttons */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Status filters: Todos / Pendientes / Pagados */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
             <button
-              key={t}
-              onClick={() => setFilterType(t)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-colors ${
-                filterType === t
+              onClick={() => setStatusFilter('todos')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                statusFilter === 'todos'
                   ? 'bg-slate-800 text-slate-100 border border-slate-700 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
-              {t === 'todos' ? 'Todos los Gastos' : t}
+              Todos ({activeExpensesList.length})
             </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Toggle to show/hide seasonal items outside this month */}
-          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl hover:text-slate-200 transition-colors">
-            <input
-              type="checkbox"
-              checked={showInactiveSeasonal}
-              onChange={(e) => setShowInactiveSeasonal(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500"
-            />
-            <span>Ver también fuera de temporada</span>
-          </label>
-
-          <button
-            onClick={() => {
-              setOneOffToEdit(null);
-              setIsOneOffModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 font-semibold text-xs border border-indigo-500/30 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Gasto Puntual</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setRecurrentToEdit(null);
-              setIsSeasonalModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-sm"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Nuevo Fijo / Temporada</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 4. Detailed Breakdown of Expenses for Selected Month */}
-      <div className="space-y-4">
-        {/* Category A: Recurrent & Seasonal Expenses */}
-        {(filterType === 'todos' || filterType === 'recurrentes' || filterType === 'temporada') && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-slate-200 text-sm flex items-center gap-2">
-                  <span>Gastos Fijos y de Temporada ({selectedMonthObj.label})</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono-num font-normal">
-                    {recurrentCalculations.filter((rc) => !rc.isIncome && (showInactiveSeasonal || rc.appliesThisMonth)).length}
-                  </span>
-                </h4>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Puedes editar el importe de este mes o marcarlo para omitir si no se pagará.
-                </p>
-              </div>
-              <span className="text-xs font-mono-num font-bold text-rose-400">
-                Subtotal: {formatCurrency(totalRecurrentExpenses)}
-              </span>
-            </div>
-
-            <div className="divide-y divide-slate-800/80">
-              {recurrentCalculations
-                .filter((rc) => {
-                  if (rc.isIncome) return false;
-                  if (filterType === 'temporada' && !rc.isSeasonal) return false;
-                  if (filterType === 'recurrentes' && rc.isSeasonal) return false;
-                  if (!showInactiveSeasonal && !rc.appliesThisMonth) return false;
-                  return true;
-                })
-                .map((item) => {
-                  const r = item.recurrent;
-                  const cat = categories.find((c) => c.id === r.categoriaId);
-                  const Icon = getCategoryIcon(cat?.icono || 'Receipt');
-
-                  return (
-                    <div
-                      key={r.id}
-                      className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
-                        item.isOmitted
-                          ? 'bg-slate-950/50 opacity-60'
-                          : !item.isSeasonActive && item.isSeasonal
-                          ? 'bg-slate-950/30 opacity-70'
-                          : 'hover:bg-slate-850/40'
-                      }`}
-                    >
-                      {/* Left: Icon & Info */}
-                      <div className="flex items-start sm:items-center gap-3 min-w-0">
-                        <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 sm:mt-0"
-                          style={{
-                            backgroundColor: `${cat?.color || '#3b82f6'}20`,
-                            color: cat?.color || '#3b82f6',
-                          }}
-                        >
-                          <Icon className="w-5 h-5" />
-                        </div>
-
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h5 className={`text-sm font-semibold text-slate-200 truncate ${item.isOmitted ? 'line-through text-slate-400' : ''}`}>
-                              {r.nombre}
-                            </h5>
-
-                            {/* Seasonal Badge */}
-                            {item.isSeasonal && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300">
-                                <Sparkles className="w-3 h-3 text-amber-400" />
-                                {r.temporadaNombre || 'Estacional'}
-                              </span>
-                            )}
-
-                            {/* Status Badges for THIS month */}
-                            {item.isOmitted ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/15 border border-rose-500/30 text-rose-300">
-                                <Ban className="w-3 h-3" />
-                                Omitido este mes
-                              </span>
-                            ) : item.hasCustomAmount ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
-                                <Sliders className="w-3 h-3" />
-                                Editado este mes
-                              </span>
-                            ) : !item.isSeasonActive && item.isSeasonal ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-800 text-slate-400">
-                                Fuera de temporada este mes
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">
-                                Activo este mes
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Details & Notes */}
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 mt-1">
-                            <span>Día previsto: {r.diaDelMes}</span>
-                            <span>•</span>
-                            <span>{cat?.nombre || 'General'}</span>
-                            {item.override?.motivo && (
-                              <>
-                                <span>•</span>
-                                <span className="text-amber-300/90 italic font-sans">
-                                  "{item.override.motivo}"
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right: Amounts & Action Buttons */}
-                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
-                        <div className="text-right">
-                          {/* If custom amount or omitted, show original crossed out */}
-                          {(item.hasCustomAmount || item.isOmitted) && (
-                            <span className="text-xs text-slate-400 line-through block font-mono-num">
-                              {formatCurrency(r.importe)}
-                            </span>
-                          )}
-                          <div
-                            className={`text-base font-bold font-mono-num ${
-                              item.isOmitted || (!item.isSeasonActive && item.isSeasonal)
-                                ? 'text-slate-400'
-                                : item.hasCustomAmount
-                                ? 'text-amber-300'
-                                : 'text-rose-400'
-                            }`}
-                          >
-                            {item.isOmitted
-                              ? '0,00 €'
-                              : !item.isSeasonActive && item.isSeasonal
-                              ? '0,00 €'
-                              : `-${formatCurrency(item.effectiveAmount)}`}
-                          </div>
-                        </div>
-
-                        {/* Interactive Buttons for THIS month */}
-                        <div className="flex items-center gap-1.5">
-                          {/* Edit this specific month button */}
-                          <button
-                            onClick={() => setOverrideModalRec(r)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors"
-                            title={`Ajustar importe u omitir en ${selectedMonthObj.label}`}
-                          >
-                            <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Ajustar mes</span>
-                          </button>
-
-                          {/* Restore default button if it has an override */}
-                          {item.override && (
-                            <button
-                              onClick={() => removeRecurrentMonthOverride(r.id, selectedPeriod)}
-                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 border border-slate-700 transition-colors"
-                              title="Restaurar valor original de este mes"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-
-                          {/* Edit master recurrent configuration */}
-                          <button
-                            onClick={() => {
-                              setRecurrentToEdit(r);
-                              setIsSeasonalModalOpen(true);
-                            }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-                            title="Editar configuración general del gasto"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
+            <button
+              onClick={() => setStatusFilter('pendientes')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                statusFilter === 'pendientes'
+                  ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm'
+                  : 'text-slate-400 hover:text-amber-300 hover:bg-slate-800/60'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>Pendientes ({countPendientes})</span>
+            </button>
+            <button
+              onClick={() => setStatusFilter('pagados')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                statusFilter === 'pagados'
+                  ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                  : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/60'
+              }`}
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Pagados ({countPagados})</span>
+            </button>
           </div>
-        )}
 
-        {/* Category B: Scheduled Financing Quotas for this month */}
-        {(filterType === 'todos' || filterType === 'cuotas') && scheduledCuotas.length > 0 && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-slate-200 text-sm flex items-center gap-2">
-                  <ReceiptText className="w-4 h-4 text-amber-400" />
-                  <span>Cuotas de Financiaciones a Plazos ({selectedMonthObj.label})</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-amber-400 font-mono-num">
-                    {scheduledCuotas.length}
-                  </span>
-                </h4>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Vencimientos programados de compras financiadas hasta completar el importe total.
-                </p>
-              </div>
-              <span className="text-xs font-mono-num font-bold text-amber-400">
-                Subtotal: {formatCurrency(totalCuotasAmount)}
-              </span>
-            </div>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              id="btn-nuevo-gasto-puntual"
+              onClick={() => {
+                setOneOffToEdit(null);
+                setIsOneOffModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-semibold text-xs transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Gasto Puntual</span>
+            </button>
 
-            <div className="divide-y divide-slate-800/80">
-              {scheduledCuotas.map((cuota) => (
-                <div
-                  key={cuota.cuotaId}
-                  className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-850/40 transition-colors"
+            <button
+              id="btn-nuevo-gasto-fijo"
+              onClick={() => {
+                setRecurrentToEdit(null);
+                setIsSeasonalModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>+ Fijo / Temporada</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Secondary Bar: Search & Type Filter & View Mode */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Buscar gasto por nombre, cuenta..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-500 outline-none focus:border-amber-400 transition-colors"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Type selector */}
+            <div className="flex items-center gap-1 bg-slate-950/80 border border-slate-800 rounded-xl p-0.5 text-xs">
+              {(['todos', 'recurrentes', 'cuotas', 'puntuales'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTypeFilter(t)}
+                  className={`px-2.5 py-1 rounded-lg font-medium capitalize transition-colors ${
+                    typeFilter === t
+                      ? 'bg-slate-800 text-slate-100 font-semibold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
-                      <ReceiptText className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h5 className="text-sm font-semibold text-slate-200 truncate">
-                          {cuota.financiacionNombre}
-                        </h5>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-amber-300">
-                          Cuota {cuota.numeroCuota} / {cuota.numeroCuotasTotal}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                        <span>{cuota.entidad}</span>
-                        <span>•</span>
-                        <span>Vence: {cuota.fechaVencimiento}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
-                    <div className="text-right">
-                      <span className="text-base font-bold font-mono-num text-amber-400">
-                        -{formatCurrency(cuota.importe)}
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => toggleCuotaPagada(cuota.cuotaId)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                        cuota.pagada
-                          ? 'bg-emerald-950/40 border-emerald-500/60 text-emerald-300'
-                          : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
-                      }`}
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>{cuota.pagada ? 'Pagada' : 'Marcar pagada'}</span>
-                    </button>
-                  </div>
-                </div>
+                  {t === 'todos' ? 'Todos' : t === 'recurrentes' ? 'Fijos' : t}
+                </button>
               ))}
             </div>
-          </div>
-        )}
 
-        {/* Category C: Planned One-off Expenses for this month */}
-        {(filterType === 'todos' || filterType === 'puntuales') && monthlyOneOffs.length > 0 && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-slate-200 text-sm flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-indigo-400" />
-                  <span>Gastos Puntuales / Extraordinarios Planificados</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-indigo-300 font-mono-num">
-                    {monthlyOneOffs.length}
-                  </span>
-                </h4>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Gastos no periódicos previstos para el mes de {selectedMonthObj.label}.
-                </p>
-              </div>
-              <span className="text-xs font-mono-num font-bold text-indigo-300">
-                Subtotal: {formatCurrency(totalOneOffAmount)}
-              </span>
+            {/* View Mode Toggle: Apilado vs Agrupado */}
+            <div className="flex items-center gap-1 bg-slate-950/80 border border-slate-800 rounded-xl p-0.5 text-xs">
+              <button
+                onClick={() => setViewMode('apilado')}
+                className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${
+                  viewMode === 'apilado'
+                    ? 'bg-slate-800 text-amber-400 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Vista apilada cronológica (ordenada por día de cobro)"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Apilado</span>
+              </button>
+              <button
+                onClick={() => setViewMode('agrupado')}
+                className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${
+                  viewMode === 'agrupado'
+                    ? 'bg-slate-800 text-amber-400 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Vista agrupada por tipo de gasto"
+              >
+                <ListFilter className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Por Tipo</span>
+              </button>
             </div>
+          </div>
+        </div>
+      </div>
 
-            <div className="divide-y divide-slate-800/80">
-              {monthlyOneOffs.map((oneOff) => {
-                const cat = categories.find((c) => c.id === oneOff.categoriaId);
-                const Icon = getCategoryIcon(cat?.icono || 'Tag');
+      {/* 4. THE STACKED LIST: Compact, Easy-to-Interpret, Full Interactivity */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+        {/* Table header bar */}
+        <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold text-slate-200">
+              Gastos de {selectedMonthObj.label} ({displayedExpenses.length})
+            </span>
+            <span className="text-[11px] text-slate-400 hidden sm:inline">
+              Haz clic en el círculo verde para marcar pagado o en los botones para ajustar importe/borrar.
+            </span>
+          </div>
 
-                return (
-                  <div
-                    key={oneOff.id}
-                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-850/40 transition-colors"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center shrink-0">
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h5 className="text-sm font-semibold text-slate-200 truncate">
-                            {oneOff.nombre}
-                          </h5>
-                          {oneOff.pagado && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300">
-                              Pagado
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                          <span>{cat?.nombre || 'General'}</span>
-                          {oneOff.diaEstimado && (
-                            <>
-                              <span>•</span>
-                              <span>Día aprox: {oneOff.diaEstimado}</span>
-                            </>
-                          )}
-                          {oneOff.notas && (
-                            <>
-                              <span>•</span>
-                              <span className="italic text-slate-400">{oneOff.notas}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
+          <div className="text-right">
+            <span className="font-mono-num font-bold text-rose-400">
+              Total listado: {formatCurrency(displayedExpenses.reduce((s, i) => s + i.importeEfectivo, 0))}
+            </span>
+          </div>
+        </div>
+
+        {/* Stacked Rows Container */}
+        {displayedExpenses.length === 0 ? (
+          <div className="p-10 text-center space-y-2">
+            <Info className="w-8 h-8 text-slate-500 mx-auto" />
+            <h5 className="text-sm font-semibold text-slate-300">
+              No hay gastos que coincidan con los filtros seleccionados
+            </h5>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              Intenta cambiar los filtros de estado o añade un nuevo gasto para este mes.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-800/70">
+            {displayedExpenses.map((item) => {
+              const cat = categories.find((c) => c.id === item.categoriaId);
+              const account = accounts.find((a) => a.id === item.cuentaId);
+              const Icon = getCategoryIcon(cat?.icono || 'Receipt');
+
+              return (
+                <div
+                  key={item.id}
+                  id={`expense-row-${item.id}`}
+                  className={`px-3 py-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                    item.pagado
+                      ? 'bg-emerald-950/10 hover:bg-emerald-950/20'
+                      : item.isOmitted
+                      ? 'bg-slate-950/60 opacity-50'
+                      : 'hover:bg-slate-800/40'
+                  }`}
+                >
+                  {/* Left block: Check toggle + Day badge + Icon + Details */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* 1-Click Toggle Pagado Button */}
+                    <button
+                      type="button"
+                      id={`btn-toggle-pagado-${item.id}`}
+                      onClick={() => handleTogglePagado(item)}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all ${
+                        item.pagado
+                          ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-950/50'
+                          : 'bg-slate-800/90 text-slate-400 hover:text-white hover:bg-slate-700 border border-slate-700/80'
+                      }`}
+                      title={item.pagado ? 'Marcar como pendiente' : 'Marcar como pagado este mes'}
+                    >
+                      <Check className="w-4 h-4 stroke-[3]" />
+                    </button>
+
+                    {/* Day Badge */}
+                    <div
+                      className={`w-9 h-9 rounded-lg flex flex-col items-center justify-center shrink-0 text-center font-mono-num border ${
+                        item.pagado
+                          ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+                          : 'bg-slate-950 border-slate-800 text-slate-300'
+                      }`}
+                      title={`Día previsto de cobro: ${item.dia}`}
+                    >
+                      <span className="text-[9px] uppercase tracking-tighter text-slate-400 leading-none">DÍA</span>
+                      <span className="text-xs font-bold leading-none mt-0.5">
+                        {item.dia < 10 ? `0${item.dia}` : item.dia}
+                      </span>
                     </div>
 
-                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
-                      <span className="text-base font-bold font-mono-num text-indigo-300">
-                        -{formatCurrency(oneOff.importe)}
-                      </span>
+                    {/* Category Icon */}
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 hidden sm:flex"
+                      style={{
+                        backgroundColor: `${cat?.color || '#eab308'}15`,
+                        color: cat?.color || '#eab308',
+                      }}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
 
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => toggleOneOffExpensePagado(oneOff.id)}
-                          className={`p-1.5 rounded-lg border transition-colors ${
-                            oneOff.pagado
-                              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                              : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-400'
+                    {/* Title, Subtype & Badges */}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h5
+                          className={`text-xs sm:text-sm font-semibold truncate ${
+                            item.pagado
+                              ? 'text-slate-300'
+                              : item.isOmitted
+                              ? 'line-through text-slate-400'
+                              : 'text-slate-100'
                           }`}
-                          title={oneOff.pagado ? 'Marcar como pendiente' : 'Marcar como pagado'}
                         >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setOneOffToEdit(oneOff);
-                            setIsOneOffModalOpen(true);
-                          }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-                          title="Editar gasto puntual"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => deleteOneOffExpense(oneOff.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
-                          title="Eliminar gasto puntual"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          {item.nombre}
+                        </h5>
+
+                        {/* Paid Badge */}
+                        {item.pagado && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                            Pagado
+                          </span>
+                        )}
+
+                        {/* Omitted Badge */}
+                        {item.isOmitted && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-500/15 border border-rose-500/30 text-rose-300">
+                            Omitido este mes
+                          </span>
+                        )}
+
+                        {/* Modified amount Badge */}
+                        {item.isModifiedThisMonth && !item.isOmitted && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                            Ajustado este mes
+                          </span>
+                        )}
+
+                        {/* Amortizada por extra Badge */}
+                        {item.amortizadaPorExtra && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/15 border border-indigo-500/30 text-indigo-300">
+                            Amortizada fuera de cuota
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Micro info line */}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400 mt-0.5">
+                        <span className="font-medium text-slate-300">{cat?.nombre || 'General'}</span>
+                        {account && (
+                          <>
+                            <span>•</span>
+                            <span className="text-slate-400">{account.nombre}</span>
+                          </>
+                        )}
+                        <span>•</span>
+                        <span className="text-slate-400">{item.tagLabel}</span>
+                        {item.motivo && (
+                          <>
+                            <span>•</span>
+                            <span className="text-amber-300/90 italic truncate max-w-[200px]">
+                              "{item.motivo}"
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
-        {/* Empty state if nothing matches */}
-        {totalMonthlyExpenses === 0 && (
-          <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-2">
-            <Info className="w-8 h-8 text-slate-500 mx-auto" />
-            <h5 className="text-sm font-semibold text-slate-300">
-              No hay gastos registrados para {selectedMonthObj.label}
-            </h5>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              Puedes programar un gasto puntual extraordinario o añadir un gasto fijo o estacional para este periodo.
-            </p>
+                  {/* Right block: Amount & Action Buttons */}
+                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-800/60">
+                    {/* Amount */}
+                    <div className="text-right">
+                      {/* Crossed out original amount if modified or omitted */}
+                      {(item.isModifiedThisMonth || item.isOmitted) && (
+                        <span className="text-[11px] text-slate-400 line-through block font-mono-num">
+                          {formatCurrency(item.importeOriginal)}
+                        </span>
+                      )}
+                      <div
+                        className={`text-sm sm:text-base font-bold font-mono-num ${
+                          item.isOmitted
+                            ? 'text-slate-400'
+                            : item.isModifiedThisMonth
+                            ? 'text-amber-300'
+                            : item.pagado
+                            ? 'text-emerald-400'
+                            : 'text-rose-400'
+                        }`}
+                      >
+                        {item.isOmitted
+                          ? '0,00 €'
+                          : `-${formatCurrency(item.importeEfectivo)}`}
+                      </div>
+                    </div>
+
+                    {/* Stacked Row Action Buttons */}
+                    <div className="flex items-center gap-1">
+                      {/* 1. Modify Amount for this month */}
+                      <button
+                        type="button"
+                        id={`btn-edit-amount-${item.id}`}
+                        onClick={() => handleOpenEditAmount(item)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition-colors"
+                        title="Modificar el importe para este mes"
+                      >
+                        <Sliders className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* 2. Restore if has override */}
+                      {item.isModifiedThisMonth && (
+                        <button
+                          type="button"
+                          onClick={() => handleRestoreAmount(item.type, item.rawId, selectedPeriod)}
+                          className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-colors"
+                          title="Restaurar importe base original"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {/* 3. Delete or Omit */}
+                      <button
+                        type="button"
+                        id={`btn-delete-expense-${item.id}`}
+                        onClick={() => handleDeleteOrOmitClick(item)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+                        title={
+                          item.type === 'puntual'
+                            ? 'Eliminar gasto puntual'
+                            : item.isOmitted
+                            ? 'Restaurar gasto'
+                            : 'Omitir este mes o borrar'
+                        }
+                      >
+                        {item.isOmitted ? (
+                          <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* 5. Visual Comparison Chart / Horizon Bars of Next Months */}
+      {/* 5. Visual 12-Month Comparison Chart */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -846,17 +981,17 @@ export const MonthlyExpensesForecast: React.FC = () => {
               Comparativa de Gastos Previstos a 12 Meses
             </h4>
             <p className="text-xs text-slate-400 mt-0.5">
-              Visualiza en qué meses tendrás mayores picos de gasto por estacionalidad o cuotas activas.
+              Picos de gasto mensual calculados según periodicidad fija, estacionalidad y compras a plazos.
             </p>
           </div>
           <span className="text-xs text-slate-400 font-mono-num">
-            Pico máximo: {formatCurrency(maxHorizonExpense)}
+            Pico máx: {formatCurrency(maxHorizonExpense)}
           </span>
         </div>
 
         <div className="grid grid-cols-6 sm:grid-cols-12 gap-2 pt-2">
           {horizonSummary.map((h) => {
-            const heightPercent = Math.max(8, Math.round((h.totalExp / maxHorizonExpense) * 100));
+            const heightPercent = Math.max(10, Math.round((h.totalExp / maxHorizonExpense) * 100));
             const isSelected = h.key === selectedPeriod;
 
             return (
@@ -865,23 +1000,23 @@ export const MonthlyExpensesForecast: React.FC = () => {
                 onClick={() => setSelectedPeriod(h.key)}
                 className={`group flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all ${
                   isSelected
-                    ? 'bg-emerald-950/40 border border-emerald-500/60'
+                    ? 'bg-amber-500/15 border border-amber-500/50'
                     : 'hover:bg-slate-950/40'
                 }`}
               >
                 {/* Bar */}
-                <div className="w-full h-28 flex items-end justify-center bg-slate-950/60 rounded-lg p-1">
+                <div className="w-full h-24 flex items-end justify-center bg-slate-950/60 rounded-lg p-1">
                   <div
                     style={{ height: `${heightPercent}%` }}
                     className={`w-full rounded-md transition-all ${
                       isSelected
-                        ? 'bg-gradient-to-t from-emerald-600 to-teal-400'
-                        : 'bg-gradient-to-t from-slate-700 to-slate-500 group-hover:from-emerald-700 group-hover:to-teal-500'
+                        ? 'bg-amber-400'
+                        : 'bg-slate-700 group-hover:bg-amber-500/70'
                     }`}
                   />
                 </div>
 
-                <span className={`text-[10px] font-bold ${isSelected ? 'text-emerald-300' : 'text-slate-400'}`}>
+                <span className={`text-[10px] font-bold ${isSelected ? 'text-amber-300' : 'text-slate-400'}`}>
                   {h.shortLabel.substring(0, 3)}
                 </span>
                 <span className="text-[9px] font-mono-num text-slate-400 group-hover:text-slate-200">
@@ -893,17 +1028,111 @@ export const MonthlyExpensesForecast: React.FC = () => {
         </div>
       </div>
 
-      {/* Modals */}
-      <MonthOverrideModal
-        isOpen={Boolean(overrideModalRec)}
-        onClose={() => setOverrideModalRec(null)}
-        recurrent={overrideModalRec}
+      {/* MODAL: Modificar importe del gasto este mes */}
+      <EditMonthExpenseModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setTargetToEdit(null);
+        }}
+        target={targetToEdit}
         periodo={selectedPeriod}
         monthLabel={selectedMonthObj.label}
-        onSaveOverride={setRecurrentMonthOverride}
-        onRemoveOverride={removeRecurrentMonthOverride}
+        onSave={handleSaveEditedAmount}
+        onRestoreOriginal={handleRestoreAmount}
       />
 
+      {/* MODAL: Prompt de confirmación para Omitir vs Eliminar Recurrente */}
+      {deletePromptItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-2.5 text-amber-400">
+              <AlertCircle className="w-5 h-5" />
+              <h3 className="font-bold text-slate-100 text-sm">
+                Gestión de Gasto: {deletePromptItem.nombre}
+              </h3>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              ¿Qué acción deseas realizar sobre este gasto fijo para <strong className="text-amber-300">{selectedMonthObj.label}</strong>?
+            </p>
+
+            <div className="space-y-2.5 pt-1">
+              {deletePromptItem.isOmitted ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await removeRecurrentMonthOverride(deletePromptItem.rawId, selectedPeriod);
+                    setDeletePromptItem(null);
+                  }}
+                  className="w-full p-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-between transition-all"
+                >
+                  <span>Restablecer importe normal este mes</span>
+                  <span className="font-mono-num">({formatCurrency(deletePromptItem.importeOriginal)})</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await deleteOrOmitMonthlyExpense(
+                      deletePromptItem.type,
+                      deletePromptItem.rawId,
+                      selectedPeriod,
+                      'omitir_mes'
+                    );
+                    setDeletePromptItem(null);
+                  }}
+                  className="w-full p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-start gap-2.5 transition-all text-left border border-slate-700"
+                >
+                  <Ban className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-slate-100">Omitir solo en {selectedMonthObj.label} (0,00 €)</strong>
+                    <span className="text-[11px] text-slate-400">
+                      Conserva la regla habitual y reaparecerá en los meses siguientes con normalidad.
+                    </span>
+                  </div>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={async () => {
+                  if (confirm(`¿Eliminar definitivamente "${deletePromptItem.nombre}" de todos los meses? Esta acción no se puede deshacer.`)) {
+                    await deleteOrOmitMonthlyExpense(
+                      deletePromptItem.type,
+                      deletePromptItem.rawId,
+                      selectedPeriod,
+                      'eliminar_definitivo'
+                    );
+                    setDeletePromptItem(null);
+                  }
+                }}
+                className="w-full p-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 font-semibold text-xs flex items-start gap-2.5 transition-all text-left border border-rose-500/30"
+              >
+                <Trash2 className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block text-rose-200">Eliminar de todos los meses</strong>
+                  <span className="text-[11px] text-rose-300/70">
+                    Borra este gasto recurrente de forma permanente de tu plan financiero.
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setDeletePromptItem(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Nuevo / Editar Gasto Fijo o Estacional */}
       <SeasonalExpenseModal
         isOpen={isSeasonalModalOpen}
         onClose={() => {
@@ -913,6 +1142,7 @@ export const MonthlyExpensesForecast: React.FC = () => {
         recurrentToEdit={recurrentToEdit}
       />
 
+      {/* MODAL: Nuevo / Editar Gasto Puntual */}
       <OneOffExpenseModal
         isOpen={isOneOffModalOpen}
         onClose={() => {

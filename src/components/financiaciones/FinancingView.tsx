@@ -9,9 +9,13 @@ import {
   Check,
   X,
   CreditCard,
+  Sparkles,
+  ArrowDownCircle,
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { formatCurrency, formatDate } from '../../lib/formatters';
+import { AportacionExtraModal } from './AportacionExtraModal';
+import { Financiacion } from '../../types';
 
 export const FinancingView: React.FC = () => {
   const {
@@ -21,9 +25,13 @@ export const FinancingView: React.FC = () => {
     createFinanciacion,
     toggleCuotaPagada,
     deleteFinanciacion,
+    createAportacionExtraordinaria,
+    deleteAportacionExtraordinaria,
   } = useFinance();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAportacionModalOpen, setIsAportacionModalOpen] = useState(false);
+  const [aportacionTargetFin, setAportacionTargetFin] = useState<Financiacion | null>(null);
   const [selectedFinId, setSelectedFinId] = useState<string | null>(
     financiaciones[0]?.id || null
   );
@@ -102,6 +110,7 @@ export const FinancingView: React.FC = () => {
   const summary = useMemo(() => {
     let totalImporte = 0;
     let totalPagado = 0;
+    let totalAportadoExtra = 0;
     let cuotasTotal = 0;
     let cuotasPagadas = 0;
 
@@ -116,14 +125,20 @@ export const FinancingView: React.FC = () => {
       });
       // also include initial down payment if any
       totalPagado += f.entrada;
+      // also include extra contributions outside of quotas
+      (f.aportacionesExtra || []).forEach((a) => {
+        totalAportadoExtra += a.importe;
+      });
     });
 
-    const totalPendiente = Math.max(0, totalImporte - totalPagado);
-    const progressPercent = totalImporte > 0 ? (totalPagado / totalImporte) * 100 : 0;
+    const totalAmortizado = totalPagado + totalAportadoExtra;
+    const totalPendiente = Math.max(0, totalImporte - totalAmortizado);
+    const progressPercent = totalImporte > 0 ? (totalAmortizado / totalImporte) * 100 : 0;
 
     return {
       totalImporte,
-      totalPagado,
+      totalPagado: totalAmortizado,
+      totalAportadoExtra,
       totalPendiente,
       cuotasTotal,
       cuotasPagadas,
@@ -143,18 +158,34 @@ export const FinancingView: React.FC = () => {
             Financiaciones y Cuotas a Plazos
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Generación automática de cuotas, seguimiento mensual y registro automático de gastos.
+            Generación automática de cuotas, amortizaciones fuera de cuota y registro automático de gastos.
           </p>
         </div>
 
-        <button
-          id="btn-nueva-financiacion"
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs sm:text-sm shadow-lg shadow-amber-950/40 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Nueva Financiación</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          {financiaciones.length > 0 && (
+            <button
+              id="btn-aportar-fuera-cuota"
+              onClick={() => {
+                setAportacionTargetFin(activeFin || financiaciones[0] || null);
+                setIsAportacionModalOpen(true);
+              }}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-semibold text-xs sm:text-sm shadow-sm transition-all"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>Aportar Fuera de Cuota</span>
+            </button>
+          )}
+
+          <button
+            id="btn-nueva-financiacion"
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs sm:text-sm shadow-lg shadow-amber-950/40 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nueva Financiación</span>
+          </button>
+        </div>
       </div>
 
       {/* Global Summary KPIs */}
@@ -362,6 +393,85 @@ export const FinancingView: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Extra Contribution Action Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
+                  <div>
+                    <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>¿Quieres aportar algo fuera de cuota?</span>
+                    </div>
+                    <p className="text-[11px] text-amber-300/80 mt-0.5">
+                      Amortiza capital en cualquier fecha para reducir cuotas pendientes o bajar la mensualidad.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAportacionTargetFin(activeFin);
+                      setIsAportacionModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Aportar Ahora</span>
+                  </button>
+                </div>
+
+                {/* Past Extra Contributions list if any */}
+                {activeFin.aportacionesExtra && activeFin.aportacionesExtra.length > 0 && (
+                  <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400 uppercase tracking-wider">
+                        <ArrowDownCircle className="w-3.5 h-3.5" />
+                        <span>Aportaciones Fuera de Cuota ({activeFin.aportacionesExtra.length})</span>
+                      </div>
+                      <span className="text-xs font-mono-num font-bold text-emerald-400">
+                        Total aportado: {formatCurrency(activeFin.aportacionesExtra.reduce((s, a) => s + a.importe, 0))}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1">
+                      {activeFin.aportacionesExtra.map((ap) => (
+                        <div
+                          key={ap.id}
+                          className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800/80 text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono-num font-bold text-amber-300">
+                              +{formatCurrency(ap.importe)}
+                            </span>
+                            <span className="text-slate-400">•</span>
+                            <span className="text-[11px] text-slate-300">{formatDate(ap.fecha)}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+                              {ap.tipoReduccion === 'reducir_plazo'
+                                ? 'Reducción de plazo'
+                                : ap.tipoReduccion === 'reducir_cuota'
+                                ? 'Reducción de cuota'
+                                : 'Amortización capital'}
+                            </span>
+                            {ap.notas && (
+                              <span className="text-[11px] text-slate-400 italic">"{ap.notas}"</span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`¿Eliminar la aportación de ${formatCurrency(ap.importe)}?`)) {
+                                deleteAportacionExtraordinaria(activeFin.id, ap.id);
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-400 rounded transition-colors"
+                            title="Eliminar aportación"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Explanatory helper box */}
                 <div className="mt-3 p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-slate-400 flex items-start gap-2.5">
                   <Clock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
@@ -416,12 +526,18 @@ export const FinancingView: React.FC = () => {
                               </span>
                               <span
                                 className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                                  cuota.pagada
+                                  cuota.amortizadaPorExtra
+                                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                    : cuota.pagada
                                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
                                     : 'bg-slate-800 text-slate-400'
                                 }`}
                               >
-                                {cuota.pagada ? 'Pagada' : 'Pendiente'}
+                                {cuota.amortizadaPorExtra
+                                  ? 'Amortizada extra'
+                                  : cuota.pagada
+                                  ? 'Pagada'
+                                  : 'Pendiente'}
                               </span>
                             </div>
                             <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
@@ -446,6 +562,18 @@ export const FinancingView: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Modal Aportación Extraordinaria Fuera de Cuota */}
+      <AportacionExtraModal
+        isOpen={isAportacionModalOpen}
+        onClose={() => setIsAportacionModalOpen(false)}
+        financiacion={aportacionTargetFin}
+        allFinanciaciones={financiaciones}
+        accounts={accounts}
+        onConfirm={async (finId, data) => {
+          await createAportacionExtraordinaria(finId, data);
+        }}
+      />
 
       {/* Modal Nueva Financiación */}
       {isModalOpen && (

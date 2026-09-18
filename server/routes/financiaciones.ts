@@ -312,6 +312,203 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// POST /api/financiaciones/:id/aportacion - Register an extra contribution / amortization
+router.post('/:id/aportacion', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const finId = req.params.id;
+    const { importe, fecha, cuentaId, tipoReduccion, notas, crearGasto } = req.body;
+
+    const parsedImporte = Number(importe);
+    if (!parsedImporte || isNaN(parsedImporte) || parsedImporte <= 0) {
+      return res.status(400).json({ error: 'El importe de la aportación debe ser mayor a 0.' });
+    }
+
+    const aportacionFecha = fecha ? String(fecha).substring(0, 10) : new Date().toISOString().substring(0, 10);
+    const reductionType = tipoReduccion || 'reducir_plazo';
+
+    // Find financing in memoryDb (or DB)
+    const fin = memoryDb.financiaciones.find((f) => f.id === finId && f.userId === userId);
+    if (!fin) {
+      return res.status(404).json({ error: 'Financiación no encontrada o no pertenece al usuario.' });
+    }
+
+    const aportacionId = 'ap_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    let transaccionId: string | undefined = undefined;
+
+    // Optional: Create transaction in account
+    if (crearGasto !== false && cuentaId) {
+      transaccionId = 'tx_ap_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+      const tx = {
+        id: transaccionId,
+        userId,
+        tipo: 'gasto' as const,
+        importe: parsedImporte,
+        fecha: aportacionFecha,
+        descripcion: `Aportación extraordinaria - ${fin.nombre}${notas ? ` (${notas})` : ''}`,
+        categoriaId: fin.categoriaId || 'cat_prestamos',
+        cuentaId: String(cuentaId),
+        metodoPago: 'transferencia' as const,
+        financiacionId: finId,
+        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      };
+      memoryDb.transactions.unshift(tx);
+
+      if (isDbConnected()) {
+        try {
+          await executeQuery(
+            `INSERT INTO transacciones (id, user_id, tipo, importe, fecha, descripcion, categoria_id, cuenta_id, metodo_pago, financiacion_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              tx.id,
+              userId,
+              tx.tipo,
+              tx.importe,
+              tx.fecha,
+              tx.descripcion,
+              tx.categoriaId,
+              tx.cuentaId,
+              tx.metodoPago,
+              tx.financiacionId,
+              tx.createdAt,
+            ]
+          );
+        } catch (dbErr) {
+          console.warn('[FINANCIACIONES ROUTE] Error persistiendo transaccion en DB:', dbErr);
+        }
+      }
+    }
+
+    // Apply amortization logic to quotas
+    let cuotasAfectadas = 0;
+    if (reductionType === 'reducir_plazo') {
+      let remainingToAmortize = parsedImporte;
+      // Get unpaid quotas in reverse order (cancel later quotas first)
+      const unpaidCuotas = [...fin.cuotas].filter((c) => !c.pagada).reverse();
+
+      for (const cuota of unpaidCuotas) {
+        if (remainingToAmortize <= 0) break;
+        if (cuota.importe <= remainingToAmortize) {
+          cuota.pagada = true;
+          cuota.fechaPago = aportacionFecha;
+          cuota.amortizadaPorExtra = true;
+          remainingToAmortize = Number((remainingToAmortize - cuota.importe).toFixed(2));
+          cuotasAfectadas++;
+        } else {
+          // Partially reduce this quota
+          cuota.importe = Number((cuota.importe - remainingToAmortize).toFixed(2));
+          remainingToAmortize = 0;
+          cuotasAfectadas++;
+        }
+      }
+
+      if (isDbConnected()) {
+        for (const c of fin.cuotas) {
+          try {
+            await executeQuery(
+              `UPDATE cuotas_financiacion SET pagada = ?, fecha_pago = ?, importe = ? WHERE id = ?`,
+              [c.pagada ? 1 : 0, c.fechaPago || null, c.importe, c.id]
+            );
+          } catch {}
+        }
+      }
+    } else if (reductionType === 'reducir_cuota') {
+      const unpaidCuotas = fin.cuotas.filter((c) => !c.pagada);
+      if (unpaidCuotas.length > 0) {
+        cuotasAfectadas = unpaidCuotas.length;
+        const discountPerCuota = Number((parsedImporte / unpaidCuotas.length).toFixed(2));
+        unpaidCuotas.forEach((c) => {
+          c.importe = Math.max(0, Number((c.importe - discountPerCuota).toFixed(2)));
+        });
+
+        if (isDbConnected()) {
+          for (const c of unpaidCuotas) {
+            try {
+              await executeQuery(
+                `UPDATE cuotas_financiacion SET importe = ? WHERE id = ?`,
+                [c.importe, c.id]
+              );
+            } catch {}
+          }
+        }
+      }
+    }
+
+    const aportacion = {
+      id: aportacionId,
+      financiacionId: finId,
+      importe: parsedImporte,
+      fecha: aportacionFecha,
+      cuentaId: cuentaId || fin.cuentaId,
+      tipoReduccion: reductionType as any,
+      cuotasAfectadas,
+      notas: notas ? String(notas).trim() : undefined,
+      transaccionId,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (!fin.aportacionesExtra) {
+      fin.aportacionesExtra = [];
+    }
+    fin.aportacionesExtra.unshift(aportacion);
+
+    await logAudit(
+      req,
+      'APORTACION_EXTRAORDINARIA',
+      `Aportación extraordinaria de ${parsedImporte.toFixed(2)} € a "${fin.nombre}" (${reductionType})`
+    );
+
+    return res.status(201).json({ success: true, aportacion, financiacion: fin });
+  } catch (err: any) {
+    console.error('[FINANCIACIONES ROUTE] Error registrando aportación extraordinaria:', err);
+    return res.status(500).json({ error: 'Error al registrar la aportación extraordinaria.' });
+  }
+});
+
+// DELETE /api/financiaciones/:id/aportacion/:aportacionId - Delete extra contribution
+router.delete('/:id/aportacion/:aportacionId', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const finId = req.params.id;
+    const aportacionId = req.params.aportacionId;
+
+    const fin = memoryDb.financiaciones.find((f) => f.id === finId && f.userId === userId);
+    if (!fin || !fin.aportacionesExtra) {
+      return res.status(404).json({ error: 'Aportación no encontrada.' });
+    }
+
+    const idx = fin.aportacionesExtra.findIndex((a) => a.id === aportacionId);
+    if (idx === -1) {
+      return res.status(404).json({ error: 'Aportación no encontrada.' });
+    }
+
+    const [deleted] = fin.aportacionesExtra.splice(idx, 1);
+
+    if (deleted.transaccionId) {
+      memoryDb.transactions = memoryDb.transactions.filter((t) => t.id !== deleted.transaccionId);
+      if (isDbConnected()) {
+        try {
+          await executeQuery('DELETE FROM transacciones WHERE id = ? AND user_id = ?', [
+            deleted.transaccionId,
+            userId,
+          ]);
+        } catch {}
+      }
+    }
+
+    await logAudit(
+      req,
+      'ELIMINAR_APORTACION',
+      `Eliminada aportación extraordinaria de ${deleted.importe} € de "${fin.nombre}"`
+    );
+
+    return res.json({ success: true, message: 'Aportación eliminada correctamente.' });
+  } catch (err: any) {
+    console.error('[FINANCIACIONES ROUTE] Error eliminando aportación:', err);
+    return res.status(500).json({ error: 'Error al eliminar la aportación.' });
+  }
+});
+
 // DELETE /api/financiaciones/:id - Delete financing (checks user_id match)
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {

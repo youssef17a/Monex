@@ -220,6 +220,31 @@ export const api = {
         method: 'DELETE',
       }),
     getCuotas: (id: string) => request<Cuota[]>(`/financiaciones/${id}/cuotas`),
+    createAportacion: (
+      finId: string,
+      data: {
+        importe: number;
+        fecha?: string;
+        cuentaId?: string;
+        tipoReduccion?: 'reducir_plazo' | 'reducir_cuota' | 'capital_directo';
+        notas?: string;
+        crearGasto?: boolean;
+      }
+    ) =>
+      request<{ success: boolean; aportacion: any; financiacion: Financiacion }>(
+        `/financiaciones/${finId}/aportacion`,
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }
+      ),
+    deleteAportacion: (finId: string, aportacionId: string) =>
+      request<{ success: boolean; message: string }>(
+        `/financiaciones/${finId}/aportacion/${aportacionId}`,
+        {
+          method: 'DELETE',
+        }
+      ),
   },
 
   // Cuotas
